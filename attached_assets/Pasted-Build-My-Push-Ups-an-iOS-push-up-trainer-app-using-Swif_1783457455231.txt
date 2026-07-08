@@ -1,0 +1,74 @@
+Build "My Push Ups" — an iOS push-up trainer app, using SwiftUI (or React Native/Expo if
+SwiftUI isn't supported in this environment). This is a fully offline app: no login,
+no account, no purchases, no cloud sync. All data is stored locally on-device only.
+
+METHODOLOGY REFERENCE
+Before writing any training logic (level selection, health screening, max-rep test,
+habit/strength rep calculations, progression, deload, level transitions), read and
+strictly follow the file "My Push Ups – Methodological Specification.md" in this
+project's root directory. That file is the single source of truth for all training
+math, thresholds, and rules — do not invent alternative formulas. Implement every
+formula in that file exactly as written (e.g. round_reps_habit = floor(max_reps * 0.4),
+weekly_total_reps = max_reps * 2, rest default 120s adjustable 60–150s, etc.).
+
+NAVIGATION
+Use a 3-tab bottom navigation bar:
+1. Home — dashboard
+2. Train — active workout screen
+3. Settings — configuration
+
+HOME TAB
+- "Today's plan" card: shows whether today is a Habit day or Strength day (per the
+  spec's frequency rules), prescribed reps/rounds, and a "Start Training" button
+  that navigates to the Train tab.
+- Calendar heatmap of last 4–8 weeks showing completed habit/strength days (streak view).
+- Progress line chart of max_reps over time per level.
+- Weekly volume bar chart.
+- Level progress bar showing current level (Wall/Incline/Knee/Full) and distance to
+  the user's goal (30/50/100 continuous reps).
+- Quick stats: current max_reps, current round reps, days since last max-test
+  (flag when a retest is due per the spec's 3–4 week cadence).
+
+TRAIN TAB
+- Idle state: big central circle showing the prescribed rep count for the current
+  round (e.g. "Round 2 of 5"), tap-to-complete.
+- Rest state: circle becomes a countdown ring using the configured rest duration
+  (default 120s), with a "Skip rest" option, haptic + sound cue on completion.
+- End of session: RPE slider (1–10) and optional pain-flag chips (wrist/shoulder/chest)
+  per the spec's safety rules, then "Save & finish" returns to Home with the plan
+  recalculated for next time using the spec's progression rules.
+- If pain flags were previously set, show a safety banner suggesting fists/handles/
+  higher incline before the session starts.
+
+SETTINGS TAB
+- Training: rest duration slider (60–150s), habit days selector (5–7 days/week),
+  strength days selector (3 non-consecutive days/week), level override, goal target.
+- Reminders: two independent local notification configs (Habit, Strength), each with
+  day-of-week toggles and a time picker. Use native iOS UNUserNotificationCenter with
+  UNCalendarNotificationTrigger (repeats: true) — fully local, no push server. Tapping
+  a notification deep-links into the Train tab for that day's session.
+- Data: export all local data to a JSON file via the iOS Share Sheet (backup), import/
+  restore from a JSON file, and a reset/clear-data option.
+- About/Health: re-access the health screening questions (cardiovascular, joint/spine,
+  chest/shoulder/wrist pain) with the mandatory physician-warning acknowledgment
+  required before any plan is generated, per the spec.
+
+ONBOARDING FLOW (first launch only)
+1. Health screening questions with warning + acknowledgment if flagged.
+2. Level selection via guided max-rep test (per spec section 2–3).
+3. Goal and schedule setup (target reps, habit days, strength days, rest duration).
+
+DATA MODEL
+Store a single local JSON structure containing: user profile (level, goal, health
+answers, settings), max_reps history per level, session log (date, track type,
+rounds completed, reps per round, RPE, pain flags). This is the exact structure
+used for the export/import backup feature.
+
+DESIGN
+Minimal, distraction-free UI on the Train tab (large typography, dominant circle,
+smooth state transitions). Home tab should visually resemble Apple Fitness+ style
+dashboards (rings, heatmaps, clean charts). Support light/dark mode and Dynamic Type.
+
+Implement all reps/rest/progression/deload/level-transition logic exactly as defined
+in "My Push Ups – Methodological Specification.md" — treat it as the authoritative
+spec for every calculation in this app.
