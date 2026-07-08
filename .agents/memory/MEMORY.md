@@ -1,0 +1,3 @@
+- [Expo web preview screenshots](expo-preview-screenshots.md) — blank white capture right after edits means Metro mid-rebundle; retake once before debugging.
+- [RN context provider tests](rn-context-testing.md) — mount providers via node:test module mocks + react-test-renderer; never await mutate-style promises inside act (deadlock).
+- [Design subagent behavior contracts](design-subagent-contracts.md) — restyle delegations can drop steps/testIDs or add stray handlers; always diff-audit after.
