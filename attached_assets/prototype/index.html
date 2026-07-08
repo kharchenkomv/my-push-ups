@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>My Push Ups — App Prototype</title>
+<meta name="description" content="Interactive screen prototype for the My Push Ups iOS training app." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,800&f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="page-header">
+  <div class="page-header__brand">
+    <span class="page-header__mark" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="white" stroke-width="2.4"/>
+        <path d="M4.5 15.5A7.5 7.5 0 0 1 15.9 5.2" stroke="#FF7A3D" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+    </span>
+    <div>
+      <p class="page-header__title">My Push Ups</p>
+      <p class="page-header__subtitle">iOS App Prototype · Screen Walkthrough</p>
+    </div>
+  </div>
+  <nav class="page-header__nav" aria-label="Screen sections">
+    <a href="#onboarding">Onboarding</a>
+    <a href="#home">Home</a>
+    <a href="#habit">Habit</a>
+    <a href="#strength">Strength</a>
+    <a href="#progress">Progress</a>
+    <a href="#settings">Settings</a>
+  </nav>
+</div>
+
+<main>
+
+  <!-- ============ INTRO ============ -->
+  <section class="intro">
+    <div class="intro__copy">
+      <p class="eyebrow">Prototype · Built from the methodological spec</p>
+      <h1>Every screen your push-up habit needs — nothing it doesn't.</h1>
+      <p class="intro__desc">This walkthrough covers the full user path: onboarding &amp; health screening, the daily Habit track, the 3&#8209;day Strength track with the big rep circle and rest timer, weekly progress, and settings. Tap through each phone frame — they're live, interactive mock&#8209;ups.</p>
+    </div>
+    <div class="intro__legend">
+      <div class="legend-item"><span class="legend-dot legend-dot--habit"></span>Habit track</div>
+      <div class="legend-item"><span class="legend-dot legend-dot--strength"></span>Strength track</div>
+      <div class="legend-item"><span class="legend-dot legend-dot--neutral"></span>Core / shared</div>
+    </div>
+  </section>
+
+  <!-- ============ ONBOARDING ============ -->
+  <section id="onboarding" class="screen-group">
+    <div class="screen-group__label">
+      <span class="step-index">01</span>
+      <div>
+        <h2>Onboarding &amp; Level Assessment</h2>
+        <p>Health screening, starting level selection, and the initial max-rep test — establishing every parameter the training plan depends on.</p>
+      </div>
+    </div>
+
+    <div class="frame-row">
+
+      <!-- Screen 1: Welcome -->
+      <figure class="phone">
+        <figcaption>Welcome</figcaption>
+        <div class="phone__screen phone__screen--gradient">
+          <div class="status-bar status-bar--light"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="welcome">
+            <div class="welcome__ring">
+              <svg width="96" height="96" viewBox="0 0 96 96" fill="none">
+                <circle cx="48" cy="48" r="40" stroke="rgba(255,255,255,.35)" stroke-width="7"/>
+                <path d="M48 8 A40 40 0 0 1 85 60" stroke="#FF7A3D" stroke-width="7" stroke-linecap="round"/>
+              </svg>
+              <svg class="welcome__pushup" width="46" height="46" viewBox="0 0 24 24" fill="none">
+                <circle cx="17.2" cy="6.4" r="2.1" fill="white"/>
+                <path d="M4 15.2 L13.5 11.6 L15.6 15.2 M13.5 11.6 L15.9 6.9" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6.5 15.2 L5.5 19" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                <path d="M12.5 15.2 L11.8 19" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h3>My Push Ups</h3>
+            <p>A safe, science-based path from your first wall push-up to 100 reps unbroken.</p>
+            <button class="btn btn--primary">Get started</button>
+            <button class="btn btn--ghost-light">I already have an account</button>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Screen 2: Health screening -->
+      <figure class="phone">
+        <figcaption>Health screening</figcaption>
+        <div class="phone__screen">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="nav-bar">
+            <button class="nav-back" aria-label="Back">&#8249;</button>
+            <span class="nav-bar__title">Before we start</span>
+            <span class="nav-bar__spacer"></span>
+          </div>
+          <div class="screen-content">
+            <p class="progress-dots"><span class="dot dot--active"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></p>
+            <h4 class="screen-title">Quick health check</h4>
+            <p class="screen-sub">Answer honestly — this keeps your plan safe.</p>
+
+            <div class="question-card">
+              <p>Cardiovascular disease or uncontrolled hypertension?</p>
+              <div class="pill-toggle">
+                <button class="pill">Yes</button>
+                <button class="pill pill--selected">No</button>
+              </div>
+            </div>
+            <div class="question-card">
+              <p>Major joint or spine problems?</p>
+              <div class="pill-toggle">
+                <button class="pill">Yes</button>
+                <button class="pill pill--selected">No</button>
+              </div>
+            </div>
+            <div class="question-card">
+              <p>Current chest, shoulder, or wrist pain?</p>
+              <div class="pill-toggle">
+                <button class="pill">Yes</button>
+                <button class="pill pill--selected">No</button>
+              </div>
+            </div>
+          </div>
+          <div class="screen-footer">
+            <button class="btn btn--primary">Continue</button>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Screen 2b: Warning state -->
+      <figure class="phone">
+        <figcaption>Health warning (conditional)</figcaption>
+        <div class="phone__screen">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="nav-bar">
+            <button class="nav-back" aria-label="Back">&#8249;</button>
+            <span class="nav-bar__title">Before we start</span>
+            <span class="nav-bar__spacer"></span>
+          </div>
+          <div class="screen-content screen-content--center">
+            <div class="warning-badge">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M12 3 L22 20 H2 Z" stroke="#B4530C" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v5" stroke="#B4530C" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="17" r="0.9" fill="#B4530C"/></svg>
+            </div>
+            <h4 class="screen-title">Please talk to a doctor first</h4>
+            <p class="screen-sub screen-sub--wide">Based on your answers, we recommend consulting a physician or qualified health professional before starting this program. This app is not a substitute for medical advice.</p>
+            <label class="checkbox-row">
+              <input type="checkbox" checked />
+              <span>I understand and want to continue anyway</span>
+            </label>
+          </div>
+          <div class="screen-footer">
+            <button class="btn btn--warning">Proceed with caution</button>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Screen 3: Level selection quiz -->
+      <figure class="phone">
+        <figcaption>Starting level quiz</figcaption>
+        <div class="phone__screen">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="nav-bar">
+            <button class="nav-back" aria-label="Back">&#8249;</button>
+            <span class="nav-bar__title">Find your level</span>
+            <span class="nav-bar__spacer"></span>
+          </div>
+          <div class="screen-content">
+            <p class="progress-dots"><span class="dot dot--done"></span><span class="dot dot--active"></span><span class="dot"></span><span class="dot"></span></p>
+            <h4 class="screen-title">Can you do 8 full push-ups with good form?</h4>
+            <p class="screen-sub">Chest to near floor, straight body line, full lockout.</p>
+            <div class="option-list">
+              <button class="option-card">
+                <span>Yes, easily — 8 or more</span>
+                <span class="chev">&#8250;</span>
+              </button>
+              <button class="option-card option-card--selected">
+                <span>A few, but not 8 with good form</span>
+                <span class="chev">&#8250;</span>
+              </button>
+              <button class="option-card">
+                <span>I can do knee push-ups only</span>
+                <span class="chev">&#8250;</span>
+              </button>
+              <button class="option-card">
+                <span>Not even one knee push-up yet</span>
+                <span class="chev">&#8250;</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Screen 4: Level result -->
+      <figure class="phone">
+        <figcaption>Assigned level</figcaption>
+        <div class="phone__screen phone__screen--gradient">
+          <div class="status-bar status-bar--light"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="result-screen">
+            <p class="result-screen__eyebrow">Your starting level</p>
+            <div class="level-badge">L2</div>
+            <h3>Level 2 — Knee Push-Ups</h3>
+            <p>Knees on the floor, straight line from knees to head. You'll progress to full push-ups as your strength builds.</p>
+            <div class="level-track">
+              <div class="level-track__step level-track__step--done">L0</div>
+              <div class="level-track__step level-track__step--done">L1</div>
+              <div class="level-track__step level-track__step--current">L2</div>
+              <div class="level-track__step">L3</div>
+            </div>
+            <button class="btn btn--primary">Run the max-rep test</button>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Screen 5: Max rep test -->
+      <figure class="phone">
+        <figcaption>Max-rep test</figcaption>
+        <div class="phone__screen">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="nav-bar">
+            <button class="nav-back" aria-label="Back">&#8249;</button>
+            <span class="nav-bar__title">Max-rep test</span>
+            <span class="nav-bar__spacer"></span>
+          </div>
+          <div class="screen-content screen-content--center">
+            <p class="screen-sub">One set of Level 2 knee push-ups. Stop the moment your form breaks — never push to absolute failure.</p>
+            <div class="tap-counter">
+              <div class="tap-counter__value">14</div>
+              <div class="tap-counter__label">reps so far</div>
+            </div>
+            <button class="btn btn--primary btn--wide">+1 rep</button>
+            <button class="btn btn--ghost">That's my limit — form is breaking down</button>
+          </div>
+        </div>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ============ HOME ============ -->
+  <section id="home" class="screen-group">
+    <div class="screen-group__label">
+      <span class="step-index">02</span>
+      <div>
+        <h2>Home Dashboard</h2>
+        <p>Today's plan at a glance — habit and strength sessions, streak, and next progression milestone.</p>
+      </div>
+    </div>
+
+    <div class="frame-row">
+
+      <!-- Home screen -->
+      <figure class="phone">
+        <figcaption>Today</figcaption>
+        <div class="phone__screen">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="screen-content screen-content--tight">
+            <div class="home-hero">
+              <div>
+                <p class="home-hero__greeting">Good morning, Mikhail</p>
+                <h4 class="screen-title screen-title--tight">Day 12 · Level 2</h4>
+              </div>
+              <div class="streak-chip">🔥 6</div>
+            </div>
+
+            <div class="track-card track-card--habit">
+              <div class="track-card__head">
+                <span class="track-tag track-tag--habit">Habit · Today</span>
+                <span class="track-card__time">~1 min</span>
+              </div>
+              <p class="track-card__title">Morning quick push-ups</p>
+              <p class="track-card__meta">1 round · 8 reps · Level 2</p>
+              <button class="btn btn--primary btn--sm">Start habit round</button>
+            </div>
+
+            <div class="track-card track-card--strength">
+              <div class="track-card__head">
+                <span class="track-tag track-tag--strength">Strength · Wed</span>
+                <span class="track-card__time">~14 min</span>
+              </div>
+              <p class="track-card__title">Session 3 of week</p>
+              <p class="track-card__meta">5 rounds · 10 reps · 120s rest</p>
+              <button class="btn btn--secondary btn--sm">Start strength session</button>
+            </div>
+
+            <div class="mini-stat-row">
+              <div class="mini-stat">
+                <p class="mini-stat__value">42</p>
+                <p class="mini-stat__label">Reps this week</p>
+              </div>
+              <div class="mini-stat">
+                <p class="mini-stat__value">3/3</p>
+                <p class="mini-stat__label">Sessions done</p>
+              </div>
+              <div class="mini-stat">
+                <p class="mini-stat__value">8</p>
+                <p class="mini-stat__label">To Level 3</p>
+              </div>
+            </div>
+          </div>
+          <div class="tab-bar">
+            <div class="tab-bar__item tab-bar__item--active"><span class="tab-dot"></span>Today</div>
+            <div class="tab-bar__item">Progress</div>
+            <div class="tab-bar__item">Settings</div>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Pain / form guidance -->
+      <figure class="phone">
+        <figcaption>Form &amp; pain check-in</figcaption>
+        <div class="phone__screen">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="nav-bar">
+            <button class="nav-back" aria-label="Back">&#8249;</button>
+            <span class="nav-bar__title">Anything hurt?</span>
+            <span class="nav-bar__spacer"></span>
+          </div>
+          <div class="screen-content">
+            <p class="screen-sub">Quick check before you start — this helps us keep your plan safe.</p>
+            <div class="option-list">
+              <button class="option-card option-card--selected"><span>No pain — good to go</span><span class="chev">&#8250;</span></button>
+              <button class="option-card"><span>Wrist discomfort</span><span class="chev">&#8250;</span></button>
+              <button class="option-card"><span>Shoulder discomfort</span><span class="chev">&#8250;</span></button>
+              <button class="option-card"><span>Chest discomfort</span><span class="chev">&#8250;</span></button>
+            </div>
+            <div class="info-callout">
+              <p><strong>If it hurts:</strong> try fists or push-up handles, raise the incline, or reduce reps/rounds today. Never train through pain.</p>
+            </div>
+          </div>
+        </div>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ============ HABIT TRACK ============ -->
+  <section id="habit" class="screen-group">
+    <div class="screen-group__label">
+      <span class="step-index">03</span>
+      <div>
+        <h2>Daily Habit Track</h2>
+        <p>Short, submaximal morning rounds built around the big circle — tap to complete, rest, repeat.</p>
+      </div>
+    </div>
+
+    <div class="frame-row">
+
+      <!-- Habit big circle - active -->
+      <figure class="phone">
+        <figcaption>Round in progress</figcaption>
+        <div class="phone__screen phone__screen--dark">
+          <div class="status-bar status-bar--light"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="nav-bar nav-bar--dark">
+            <button class="nav-back nav-back--light" aria-label="Close">&#10005;</button>
+            <span class="nav-bar__title nav-bar__title--light">Habit · Round 1 of 1</span>
+            <span class="nav-bar__spacer"></span>
+          </div>
+          <div class="session-body">
+            <p class="session-level-tag session-level-tag--habit">Level 2 · Knee push-ups</p>
+            <div class="big-circle big-circle--habit">
+              <svg viewBox="0 0 220 220" class="big-circle__ring">
+                <circle cx="110" cy="110" r="96" stroke="rgba(255,255,255,.14)" stroke-width="14" fill="none"/>
+                <circle cx="110" cy="110" r="96" stroke="#FF7A3D" stroke-width="14" fill="none" stroke-linecap="round" stroke-dasharray="603" stroke-dashoffset="180" transform="rotate(-90 110 110)"/>
+              </svg>
+              <div class="big-circle__inner">
+                <span class="big-circle__number">8</span>
+                <span class="big-circle__unit">reps</span>
+              </div>
+            </div>
+            <p class="session-hint">Tap the circle when you've completed all reps</p>
+          </div>
+          <div class="screen-footer screen-footer--dark">
+            <button class="btn btn--ghost-light">Add another round</button>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Habit rest timer -->
+      <figure class="phone">
+        <figcaption>Rest timer</figcaption>
+        <div class="phone__screen phone__screen--dark">
+          <div class="status-bar status-bar--light"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="nav-bar nav-bar--dark">
+            <button class="nav-back nav-back--light" aria-label="Close">&#10005;</button>
+            <span class="nav-bar__title nav-bar__title--light">Resting</span>
+            <span class="nav-bar__spacer"></span>
+          </div>
+          <div class="session-body">
+            <p class="session-level-tag session-level-tag--habit">Nice work — round complete</p>
+            <div class="big-circle big-circle--rest">
+              <svg viewBox="0 0 220 220" class="big-circle__ring">
+                <circle cx="110" cy="110" r="96" stroke="rgba(255,255,255,.14)" stroke-width="14" fill="none"/>
+                <circle cx="110" cy="110" r="96" stroke="#4F98A3" stroke-width="14" fill="none" stroke-linecap="round" stroke-dasharray="603" stroke-dashoffset="420" transform="rotate(-90 110 110)"/>
+              </svg>
+              <div class="big-circle__inner">
+                <span class="big-circle__number">0:34</span>
+                <span class="big-circle__unit">rest</span>
+              </div>
+            </div>
+            <p class="session-hint">Next: 1 more round of 8 reps</p>
+          </div>
+          <div class="screen-footer screen-footer--dark">
+            <button class="btn btn--primary">Skip rest</button>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Habit session complete + RPE -->
+      <figure class="phone">
+        <figcaption>RPE check-out</figcaption>
+        <div class="phone__screen">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="screen-content screen-content--center">
+            <div class="success-badge">✓</div>
+            <h4 class="screen-title">Habit round complete</h4>
+            <p class="screen-sub">How hard did that feel?</p>
+            <div class="rpe-scale">
+              <button class="rpe-dot">1</button>
+              <button class="rpe-dot">2</button>
+              <button class="rpe-dot">3</button>
+              <button class="rpe-dot">4</button>
+              <button class="rpe-dot rpe-dot--selected">5</button>
+              <button class="rpe-dot">6</button>
+              <button class="rpe-dot">7</button>
+              <button class="rpe-dot">8</button>
+              <button class="rpe-dot">9</button>
+              <button class="rpe-dot">10</button>
+            </div>
+            <p class="rpe-caption">Easy&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Max effort</p>
+          </div>
+          <div class="screen-footer">
+            <button class="btn btn--primary">Done for today</button>
+          </div>
+        </div>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ============ STRENGTH TRACK ============ -->
+  <section id="strength" class="screen-group">
+    <div class="screen-group__label">
+      <span class="step-index">04</span>
+      <div>
+        <h2>Strength / Endurance Track</h2>
+        <p>3 sessions a week, 5 rounds each — the same big-circle mechanic scaled up, with round tracking and deload logic.</p>
+      </div>
+    </div>
+
+    <div class="frame-row">
+
+      <!-- Strength pre-session -->
+      <figure class="phone">
+        <figcaption>Session preview</figcaption>
+        <div class="phone__screen">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="nav-bar">
+            <button class="nav-back" aria-label="Back">&#8249;</button>
+            <span class="nav-bar__title">Strength session</span>
+            <span class="nav-bar__spacer"></span>
+          </div>
+          <div class="screen-content">
+            <span class="track-tag track-tag--strength">Level 2 · Knee push-ups</span>
+            <h4 class="screen-title">5 rounds × 10 reps</h4>
+            <p class="screen-sub">120s rest between rounds · About 14 minutes total</p>
+            <div class="round-preview-list">
+              <div class="round-preview-row"><span>Round 1</span><span>10 reps</span></div>
+              <div class="round-preview-row"><span>Round 2</span><span>10 reps</span></div>
+              <div class="round-preview-row"><span>Round 3</span><span>10 reps</span></div>
+              <div class="round-preview-row"><span>Round 4</span><span>10 reps</span></div>
+              <div class="round-preview-row"><span>Round 5</span><span>10 reps</span></div>
+            </div>
+            <div class="info-callout info-callout--muted">
+              <p>Form cues: neutral spine, no hip sag, elbows ~45° from torso, full range of motion.</p>
+            </div>
+          </div>
+          <div class="screen-footer">
+            <button class="btn btn--secondary">Begin session</button>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Strength round active -->
+      <figure class="phone">
+        <figcaption>Round 3 of 5</figcaption>
+        <div class="phone__screen phone__screen--dark">
+          <div class="status-bar status-bar--light"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="nav-bar nav-bar--dark">
+            <button class="nav-back nav-back--light" aria-label="Close">&#10005;</button>
+            <span class="nav-bar__title nav-bar__title--light">Round 3 of 5</span>
+            <span class="nav-bar__spacer"></span>
+          </div>
+          <div class="session-body">
+            <div class="round-pips">
+              <span class="pip pip--done"></span>
+              <span class="pip pip--done"></span>
+              <span class="pip pip--active"></span>
+              <span class="pip"></span>
+              <span class="pip"></span>
+            </div>
+            <div class="big-circle big-circle--strength">
+              <svg viewBox="0 0 220 220" class="big-circle__ring">
+                <circle cx="110" cy="110" r="96" stroke="rgba(255,255,255,.14)" stroke-width="14" fill="none"/>
+                <circle cx="110" cy="110" r="96" stroke="#FF4D4D" stroke-width="14" fill="none" stroke-linecap="round" stroke-dasharray="603" stroke-dashoffset="0" transform="rotate(-90 110 110)"/>
+              </svg>
+              <div class="big-circle__inner">
+                <span class="big-circle__number">10</span>
+                <span class="big-circle__unit">reps</span>
+              </div>
+            </div>
+            <p class="session-hint">Tap when the round is complete</p>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Strength rest w/ next round preview -->
+      <figure class="phone">
+        <figcaption>Rest between rounds</figcaption>
+        <div class="phone__screen phone__screen--dark">
+          <div class="status-bar status-bar--light"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="nav-bar nav-bar--dark">
+            <button class="nav-back nav-back--light" aria-label="Close">&#10005;</button>
+            <span class="nav-bar__title nav-bar__title--light">Resting</span>
+            <span class="nav-bar__spacer"></span>
+          </div>
+          <div class="session-body">
+            <div class="round-pips">
+              <span class="pip pip--done"></span>
+              <span class="pip pip--done"></span>
+              <span class="pip pip--done"></span>
+              <span class="pip pip--active"></span>
+              <span class="pip"></span>
+            </div>
+            <div class="big-circle big-circle--rest">
+              <svg viewBox="0 0 220 220" class="big-circle__ring">
+                <circle cx="110" cy="110" r="96" stroke="rgba(255,255,255,.14)" stroke-width="14" fill="none"/>
+                <circle cx="110" cy="110" r="96" stroke="#4F98A3" stroke-width="14" fill="none" stroke-linecap="round" stroke-dasharray="603" stroke-dashoffset="500" transform="rotate(-90 110 110)"/>
+              </svg>
+              <div class="big-circle__inner">
+                <span class="big-circle__number">1:47</span>
+                <span class="big-circle__unit">rest</span>
+              </div>
+            </div>
+            <p class="session-hint">Round 4 of 5 · 10 reps next</p>
+          </div>
+          <div class="screen-footer screen-footer--dark">
+            <div class="rest-adjust">
+              <button class="rest-adjust__btn">−15s</button>
+              <button class="btn btn--primary">Skip rest</button>
+              <button class="rest-adjust__btn">+15s</button>
+            </div>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Session summary -->
+      <figure class="phone">
+        <figcaption>Session summary</figcaption>
+        <div class="phone__screen">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="screen-content screen-content--center">
+            <div class="success-badge success-badge--big">✓</div>
+            <h4 class="screen-title">Session complete</h4>
+            <p class="screen-sub">All 5 rounds at 10 reps — nice consistency.</p>
+            <div class="summary-grid">
+              <div class="summary-cell"><span class="summary-cell__value">5/5</span><span class="summary-cell__label">Rounds hit</span></div>
+              <div class="summary-cell"><span class="summary-cell__value">50</span><span class="summary-cell__label">Total reps</span></div>
+              <div class="summary-cell"><span class="summary-cell__value">14:02</span><span class="summary-cell__label">Duration</span></div>
+            </div>
+            <div class="rpe-scale rpe-scale--compact">
+              <button class="rpe-dot">4</button>
+              <button class="rpe-dot">5</button>
+              <button class="rpe-dot rpe-dot--selected">6</button>
+              <button class="rpe-dot">7</button>
+              <button class="rpe-dot">8</button>
+            </div>
+            <div class="info-callout info-callout--success">
+              <p>Two clean sessions in a row at RPE ≤ 7 — next session bumps to 11 reps/round.</p>
+            </div>
+          </div>
+          <div class="screen-footer">
+            <button class="btn btn--primary">Back to home</button>
+          </div>
+        </div>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ============ PROGRESS ============ -->
+  <section id="progress" class="screen-group">
+    <div class="screen-group__label">
+      <span class="step-index">05</span>
+      <div>
+        <h2>Progress &amp; Level Transitions</h2>
+        <p>Weekly volume trends, deload weeks, and the level-up moment when thresholds are met.</p>
+      </div>
+    </div>
+
+    <div class="frame-row">
+
+      <!-- Progress dashboard -->
+      <figure class="phone">
+        <figcaption>Progress overview</figcaption>
+        <div class="phone__screen">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="screen-content screen-content--tight">
+            <h4 class="screen-title screen-title--tight">Progress</h4>
+            <div class="segmented">
+              <span class="segmented__item segmented__item--active">Strength</span>
+              <span class="segmented__item">Habit</span>
+            </div>
+
+            <div class="chart-card">
+              <div class="chart-card__head">
+                <span>Reps per round</span>
+                <span class="chart-card__delta">+38% · 6 weeks</span>
+              </div>
+              <div class="bars">
+                <div class="bar" style="--h:34%"><span>W1</span></div>
+                <div class="bar" style="--h:40%"><span>W2</span></div>
+                <div class="bar" style="--h:48%"><span>W3</span></div>
+                <div class="bar bar--deload" style="--h:38%"><span>W4</span></div>
+                <div class="bar" style="--h:60%"><span>W5</span></div>
+                <div class="bar bar--current" style="--h:72%"><span>W6</span></div>
+              </div>
+              <p class="chart-card__note"><span class="legend-dot legend-dot--deload"></span>Deload week — volume intentionally reduced</p>
+            </div>
+
+            <div class="track-card track-card--neutral">
+              <p class="track-card__title">Next max-rep test</p>
+              <p class="track-card__meta">Due in 2 days · every 3–4 weeks</p>
+            </div>
+
+            <div class="track-card track-card--neutral">
+              <p class="track-card__title">Level 2 → Level 3</p>
+              <p class="track-card__meta">Need 3×10 knee push-ups @ RPE≤7 — 2 of 3 sessions done</p>
+              <div class="mini-progress"><span style="width:66%"></span></div>
+            </div>
+          </div>
+          <div class="tab-bar">
+            <div class="tab-bar__item">Today</div>
+            <div class="tab-bar__item tab-bar__item--active"><span class="tab-dot"></span>Progress</div>
+            <div class="tab-bar__item">Settings</div>
+          </div>
+        </div>
+      </figure>
+
+      <!-- Level up moment -->
+      <figure class="phone">
+        <figcaption>Level-up celebration</figcaption>
+        <div class="phone__screen phone__screen--gradient">
+          <div class="status-bar status-bar--light"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="levelup">
+            <div class="levelup__burst">
+              <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
+                <circle cx="60" cy="60" r="52" stroke="rgba(255,255,255,.3)" stroke-width="6"/>
+                <circle cx="60" cy="60" r="52" stroke="#FF7A3D" stroke-width="6" stroke-linecap="round" stroke-dasharray="326" stroke-dashoffset="0"/>
+              </svg>
+              <span class="levelup__badge">L3</span>
+            </div>
+            <h3>Level up!</h3>
+            <p>You've unlocked Level 3 — Full Push-Ups. Your plan has been rebuilt around your new max.</p>
+            <div class="levelup__stat-row">
+              <div><span class="levelup__stat-value">9</span><span class="levelup__stat-label">new max reps</span></div>
+              <div><span class="levelup__stat-value">18</span><span class="levelup__stat-label">days on Level 2</span></div>
+            </div>
+            <button class="btn btn--primary">See my new plan</button>
+          </div>
+        </div>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="settings" class="screen-group">
+    <div class="screen-group__label">
+      <span class="step-index">06</span>
+      <div>
+        <h2>Settings</h2>
+        <p>Frequency, rest duration, and the continuous-rep goal that drives the whole plan.</p>
+      </div>
+    </div>
+
+    <div class="frame-row">
+
+      <figure class="phone">
+        <figcaption>Training settings</figcaption>
+        <div class="phone__screen">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">●●●</span></div>
+          <div class="nav-bar">
+            <span class="nav-bar__spacer"></span>
+            <span class="nav-bar__title">Settings</span>
+            <span class="nav-bar__spacer"></span>
+          </div>
+          <div class="screen-content screen-content--tight">
+
+            <p class="settings-section-label">Goal</p>
+            <div class="settings-row">
+              <span>Continuous push-up goal</span>
+              <span class="settings-row__value">50 reps</span>
+            </div>
+
+            <p class="settings-section-label">Habit track</p>
+            <div class="settings-row">
+              <span>Days per week</span>
+              <span class="settings-row__value">7 days</span>
+            </div>
+            <div class="settings-row">
+              <span>Rest between rounds</span>
+              <span class="settings-row__value">45s</span>
+            </div>
+
+            <p class="settings-section-label">Strength track</p>
+            <div class="settings-row">
+              <span>Sessions per week</span>
+              <span class="settings-row__value">3</span>
+            </div>
+            <div class="settings-row settings-row--slider">
+              <span>Rest between rounds</span>
+              <span class="settings-row__value">120s</span>
+            </div>
+            <div class="mini-progress mini-progress--slider"><span style="width:50%"></span><i style="left:50%"></i></div>
+            <p class="settings-hint">Evidence-based range: 60–150s for beginners</p>
+
+            <p class="settings-section-label">Reminders</p>
+            <div class="settings-row">
+              <span>Morning habit reminder</span>
+              <span class="toggle toggle--on"><i></i></span>
+            </div>
+            <div class="settings-row">
+              <span>Strength day reminder</span>
+              <span class="toggle toggle--on"><i></i></span>
+            </div>
+          </div>
+          <div class="tab-bar">
+            <div class="tab-bar__item">Today</div>
+            <div class="tab-bar__item">Progress</div>
+            <div class="tab-bar__item tab-bar__item--active"><span class="tab-dot"></span>Settings</div>
+          </div>
+        </div>
+      </figure>
+
+    </div>
+  </section>
+
+</main>
+
+<footer class="page-footer">
+  <p>Prototype built from “My Push Ups – Methodological Specification.” Interactive mock-up for design review — not a functional build.</p>
+</footer>
+
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>
