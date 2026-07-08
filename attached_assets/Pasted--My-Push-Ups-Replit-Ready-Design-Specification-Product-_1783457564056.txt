@@ -1,0 +1,640 @@
+# My Push Ups — Replit-Ready Design Specification
+
+## Product concept
+
+My Push Ups is an iOS training app focused on one clear job: help users build a push-up habit and progress safely toward higher rep goals through a guided daily habit track and a structured 5-round strength track.[cite:1]
+
+The product should feel simple during use, even though the training logic underneath includes onboarding, level selection, max-rep calibration, 5-round sessions, rest timing, effort-based progression, deload behavior, and periodic re-tests.[cite:1]
+
+## Product principles
+
+### Core UX rules
+
+- One dominant action per screen.
+- The active workout screen must center the next required action, not stats or navigation clutter.
+- The app should always answer: what should I do now, how much should I do, and what happens next.[cite:1]
+- The strength session pattern should remain consistent: show reps, complete reps, start rest, begin next round, finish session, propose next plan.[cite:1]
+- Use progressive disclosure: training science stays in the background, plain-language guidance stays in the foreground.
+
+### Emotional tone
+
+The tone should feel calm, athletic, and disciplined rather than aggressive or hyper-gamified. The user should feel coached, not shouted at.
+
+Use a visual language that suggests rhythm and progress: strong typography, restrained color, clear timing states, and subtle completion feedback. Avoid neon fitness clichés, cluttered dashboards, and motivational overload.
+
+## Information architecture
+
+Use a 4-tab structure for v1:
+
+| Tab | Purpose | UX role |
+|---|---|---|
+| Today | Next recommended workout | Primary daily entry point |
+| Plan | Weekly schedule and path to goal | Orientation and planning |
+| Progress | Streaks, max tests, completed sessions, milestones | Motivation and review |
+| Settings | Rest interval, reminders, sound, haptics, accessibility, training options | Personalization |
+
+Today should always open first because the training plan already determines the next most useful action for the user.[cite:1]
+
+## Primary user flow
+
+### Onboarding
+
+The onboarding flow should be short and trust-building, because the app needs just enough information to generate a safe and personalized plan.[cite:1]
+
+Recommended onboarding sequence:
+
+1. Welcome screen: short value proposition.
+2. Goal selection: 20, 30, 50, 100, or custom.
+3. Basic health screening: cardiovascular issues, major joint or spine problems, current chest/shoulder/wrist pain.[cite:1]
+4. Starting level selection: wall, incline, knee, or full push-ups.[cite:1]
+5. Guided max test at the selected level, stopping at technical limit rather than absolute failure.[cite:1]
+6. Plan preview: show today’s session and the weekly structure.[cite:1]
+7. Immediate CTA: Start Day 1.
+
+If the user flags a serious health issue, the app must show a clear safety warning and require acknowledgment before continuing.[cite:1]
+
+### Daily entry
+
+The Today screen should show a single recommended card at the top:
+
+- Quick habit session, or
+- Strength session, depending on the day in the plan.[cite:1]
+
+Secondary content may include the weekly streak, tomorrow preview, and the current goal progress, but these should remain visually subordinate to the primary start action.
+
+### Active workout
+
+The active workout screen is the heart of the product. It should use a single central object that changes state instead of switching between unrelated layouts.
+
+#### Work state
+
+Show:
+
+- Round label above the circle, for example “Round 2 of 5.”[cite:1]
+- Large rep number inside a circular control.[cite:1]
+- Short helper text below, such as “Tap when done.”
+- Secondary controls below the fold line: pause, finish early, sound toggle.
+
+Interaction:
+
+- User performs the displayed reps.
+- User taps the big circle to confirm completion.[cite:1]
+- Completion triggers haptic feedback and transitions into rest mode.
+
+#### Rest state
+
+Show the same circle transformed into a countdown ring.
+
+Display:
+
+- Remaining time in the center.
+- Label above: “Rest.”
+- Small secondary action: Next round now.
+- Optional pause action.
+
+Behavior:
+
+- Default rest is 120 seconds for the strength track, adjustable in settings.[cite:1]
+- The user can proceed early by tapping to start the next round.[cite:1]
+- When the timer ends, the next round starts automatically and the rep target appears again.[cite:1]
+
+#### Session complete state
+
+At session completion, show:
+
+- Large success message.
+- Total rounds completed.
+- Total reps completed.
+- Optional perceived effort input using a simple 1–10 scale, because progression logic depends on completion and effort.[cite:1]
+- A next-step card: “Tomorrow: quick habit set” or “Next strength day: 5 rounds of 8.”[cite:1]
+
+Use a celebratory microinteraction, such as a subtle pulse burst or checkmark ripple, rather than loud confetti.
+
+## Screen-by-screen specification
+
+### 1. Welcome screen
+
+Purpose: establish trust and clarity.
+
+Content:
+
+- App name: My Push Ups.
+- Tagline: Build your push-up habit. Progress to 100.
+- Short explanation: personalized plan based on current ability.
+- CTA: Get started.
+- Secondary link: How it works.
+
+Layout:
+
+- Top-safe-area breathing room.
+- Centered hero text.
+- One visual anchor, such as a circular progress motif.
+- Bottom-anchored CTA for thumb reach.
+
+### 2. Health check screen
+
+Purpose: capture required safety inputs before plan generation.[cite:1]
+
+Content:
+
+- Three yes/no health questions.
+- Short explanatory note.
+- Continue CTA.
+- If needed, warning sheet with acknowledgment button.[cite:1]
+
+Design note: use plain language and avoid medical-dashboard styling.
+
+### 3. Level selection screen
+
+Purpose: place the user into the correct push-up variation.[cite:1]
+
+Cards:
+
+- Wall push-ups
+- Incline push-ups
+- Knee push-ups
+- Full push-ups
+
+Each card should include:
+
+- Name
+- Short description
+- Simple line illustration or icon
+- “Best for…” helper text
+
+Selection behavior should feel guided, not quiz-like.
+
+### 4. Max test screen
+
+Purpose: establish the user’s current baseline.[cite:1]
+
+Elements:
+
+- Instruction card: stop when form breaks.
+- Form cues: neutral spine, elbows around 45 degrees, controlled range of motion.[cite:1]
+- Start test CTA.
+- Rep counter input after completion.
+- Confirm result CTA.
+
+Design note: reassure the user that this is not an all-out competition test; it is calibration.[cite:1]
+
+### 5. Today screen
+
+Purpose: launch the next correct action fast.
+
+Structure:
+
+- Greeting or date header.
+- Main workout card.
+- Small weekly schedule strip.
+- Progress toward current goal.
+- Optional previous result summary.
+
+Primary card examples:
+
+- “Today: Quick habit set — 1 round of 6.”[cite:1]
+- “Today: Strength session — 5 rounds of 8, rest 2:00.”[cite:1]
+
+### 6. Workout screen
+
+Purpose: one-screen training execution.
+
+Layout hierarchy:
+
+1. Top: session type and round count.
+2. Center: big circular target.
+3. Bottom: supporting controls.
+
+Circle states:
+
+- Work: solid filled circle with rep number.
+- Rest: stroked progress ring with countdown.
+- Complete: confirmation state with check indicator.
+
+### 7. Plan screen
+
+Purpose: explain the structure without making the user interpret sports science.
+
+Sections:
+
+- Current level
+- Weekly schedule
+- Current session prescription
+- Next re-test timing
+- Goal path to 100
+
+Use plain-language cards instead of complex charts, for example:
+
+- “You completed 2 strong sessions in a row. Next workout adds 1 rep.”[cite:1]
+- “Re-test due this week.”[cite:1]
+
+### 8. Progress screen
+
+Purpose: reinforce momentum.
+
+Modules:
+
+- Weekly streak
+- Total sessions completed
+- Best max test
+- Current level
+- Milestones unlocked
+- Last 4 weeks summary
+
+Good motivation features for this app:
+
+- Streak ring
+- Milestone ladder: 10, 20, 30, 50, 75, 100
+- Small personal records
+- “You are stronger than 2 weeks ago” style summaries based on actual training data
+
+### 9. Settings screen
+
+Purpose: let users tune the experience without weakening the core flow.
+
+Include:
+
+- Rest interval, default 120s, adjustable within plan-supported range.[cite:1]
+- Sound on/off
+- Haptics on/off
+- Reminders
+- Goal editing
+- Accessibility options
+- Motion reduction
+- Training help and form guidance
+
+Keep settings in grouped lists with short descriptions.
+
+## Component system
+
+Build the prototype around reusable components.
+
+### BigCircleCard
+
+Purpose: main workout control.
+
+States:
+
+- Idle-work
+- Pressed-work
+- Resting-countdown
+- Paused-rest
+- Completed-round
+
+Specs:
+
+- Diameter mobile: 240–280 pt
+- Shape: perfect circle
+- Content: large numeral centered, helper label below or above
+- Motion: soft scale on tap, ring animation during rest
+
+### WorkoutHeader
+
+Fields:
+
+- Session type
+- Round progress
+- Level label
+- Optional close button
+
+### RestTimerRing
+
+Fields:
+
+- Remaining time
+- Total rest duration
+- Skip now CTA
+- Pause/resume action
+
+### PlanDayCard
+
+Fields:
+
+- Day label
+- Session type
+- Reps x rounds
+- Status: done / due / upcoming
+
+### MilestoneBadge
+
+Use for:
+
+- 10 reps
+- 20 reps
+- 7-day streak
+- First max re-test
+- Level upgrade
+
+### SettingRow
+
+Patterns:
+
+- Navigation row
+- Toggle row
+- Stepper row
+- Inline picker row
+
+## Interaction design best practices
+
+### Make one object do the work
+
+The big circle should remain the anchor throughout the session. During work it shows reps; during rest it becomes the timer; after the timer it returns to reps.[cite:1]
+
+This object continuity reduces cognitive load and creates an intuitive workout rhythm.
+
+### Keep metrics out of the way
+
+Do not overload the active session with:
+
+- weekly graphs
+- calories
+- badges
+- motivational quotes
+- community content
+
+These belong before or after the workout, not during it.
+
+### Use microfeedback, not noise
+
+Recommended:
+
+- light haptic on round completion
+- stronger haptic when rest ends
+- subtle pulse when the next round appears
+- quiet completion animation
+
+Avoid:
+
+- flashing backgrounds
+- excessive sound effects
+- large confetti explosions
+- animated mascots
+
+### Make early skip safe and obvious
+
+The user should be able to start the next round early during rest, because your training method allows proceeding early by tapping next round.[cite:1]
+
+That action should be visible but secondary so the user does not accidentally skip recovery.
+
+### Design for physical context
+
+Users may be breathing hard, moving, or on the floor. Therefore:
+
+- Keep the primary control large.
+- Keep text large and sparse.
+- Avoid precise gestures.
+- Place the main action in the lower-middle visual field.
+- Ensure major controls meet 44x44 pt minimum touch size.
+
+## Visual design system
+
+### Art direction
+
+Use a calm athletic product aesthetic: precise, strong, and premium without looking clinical.
+
+This app should look more like a focused training instrument than a general-purpose fitness marketplace.
+
+### Color palette
+
+Recommended primary palette:
+
+- Background light: warm off-white, #F6F4EF
+- Surface light: #FFFFFF
+- Text dark: #171717
+- Muted text: #6B6B6B
+- Accent primary: performance coral-red, #E44F3A
+- Accent dark state: #C63E2B
+- Success: #2E8B57
+- Warning: #B86A1E
+- Background dark: #111111
+- Surface dark: #1C1C1C
+- Text light: #F4F4F4
+
+Why this works:
+
+- Warm neutrals make the app feel less sterile.
+- Coral-red signals action and effort better than generic blue.
+- The palette remains clean enough for daily use.
+
+### Typography
+
+Recommended pairing for prototype:
+
+- Display / large numerals: General Sans or Satoshi Bold
+- UI text: Inter or General Sans Regular/Medium
+
+Type scale:
+
+- Hero numeral inside circle: 72–96 pt
+- Screen title: 28–32 pt
+- Section title: 20–24 pt
+- Body: 16–17 pt
+- Small metadata: 13–14 pt
+
+Rules:
+
+- Numerals are the visual hero.
+- Avoid decorative display fonts.
+- Maintain high contrast and generous line spacing.
+
+### Spacing and shape
+
+- Base spacing unit: 4 pt
+- Common spacing rhythm: 8, 12, 16, 24, 32
+- Card radius: 20–24 pt
+- Button radius: 16–20 pt
+- Circle: fully round
+- Borders: subtle, low-contrast, 1 pt
+
+### Motion
+
+Motion should communicate state change, not decoration.
+
+Use:
+
+- Circle scale-down then settle on tap
+- Circular ring countdown during rest
+- Number fade/scale transition between rounds
+- Card slide-up on completion
+
+Respect reduced-motion settings by swapping animated transitions for fade-only states.
+
+## iOS-specific recommendations
+
+- Use SF Symbols where small utility icons are needed.
+- Respect safe areas, especially on the workout screen.
+- Use haptics as part of the workout rhythm.
+- Support Dynamic Type for all non-circle text.
+- Keep the workout screen readable in bright and dark conditions.
+- Provide Live Activity later as a future enhancement for rest countdowns.
+
+## UX copy style
+
+Use short, direct, supportive copy.
+
+Examples:
+
+- “Round 3 of 5”
+- “Do 8 push-ups”
+- “Tap when done”
+- “Rest for 2:00”
+- “Start next round”
+- “Workout complete”
+- “Tomorrow: quick habit set”
+- “You’re ready to add 1 rep next time”
+
+Avoid:
+
+- aggressive slogans
+- long onboarding explanations
+- sports-science jargon on primary screens
+- guilt-driven reminders
+
+## Empty, loading, and error states
+
+### Empty states
+
+Examples:
+
+- No progress yet: “Your training history starts with the first session.”
+- No reminders set: “Add a reminder to build your routine.”
+
+Each empty state should include one clear action.
+
+### Loading states
+
+Use skeleton cards for:
+
+- Today workout card
+- Plan screen
+- Progress metrics
+
+Do not skeletonize the workout circle in a dramatic way; keep loading understated.
+
+### Errors
+
+If something fails, keep the message plain:
+
+- “Couldn’t load today’s workout.”
+- “Try again.”
+
+Never show raw technical errors.
+
+## Accessibility requirements
+
+- All interactive controls must be reachable with VoiceOver.
+- The big circle must have explicit accessibility labels, for example “Complete round, 8 push-ups.”
+- Timer announcements should be meaningful but not noisy.
+- Color alone must never signal state.
+- Ensure text contrast meets AA standards.
+- Provide a high-contrast mode variant if possible.
+- Respect reduced motion and larger text preferences.
+
+## Design anti-patterns to avoid
+
+- Gamified clutter on the active workout screen.
+- Tiny timer controls.
+- A dashboard-first home screen.
+- Too many tabs.
+- Blue-purple neon fitness aesthetics.
+- Generic stock-athlete imagery.
+- Text inside the App Store icon.
+- Over-complicated onboarding with too many questions up front.
+- Forcing users to understand progression rules manually.
+
+## Replit prototype scope
+
+For the first build, prototype these screens in order:
+
+1. Welcome
+2. Health check
+3. Level selection
+4. Max test
+5. Today
+6. Workout — work state
+7. Workout — rest state
+8. Session complete
+9. Plan
+10. Progress
+11. Settings
+
+## Suggested component tree for Replit
+
+```text
+App
+├── OnboardingFlow
+│   ├── WelcomeScreen
+│   ├── HealthCheckScreen
+│   ├── LevelSelectionScreen
+│   ├── MaxTestScreen
+│   └── PlanPreviewScreen
+├── MainTabs
+│   ├── TodayScreen
+│   ├── PlanScreen
+│   ├── ProgressScreen
+│   └── SettingsScreen
+└── WorkoutFlow
+    ├── WorkoutHeader
+    ├── BigCircleCard
+    ├── RestTimerRing
+    ├── SessionSummaryCard
+    └── EffortInputSheet
+```
+
+## App Store icon specification
+
+### Icon strategy
+
+The icon should be symbolic, bold, and instantly legible at small size. A literal human figure doing a push-up is too detailed for App Store sizes.
+
+### Recommended concept
+
+Use a circular badge with a white abstract push-up mark on a coral-red background.
+
+Composition:
+
+- Background: solid coral-red
+- Foreground: simplified white symbol
+- Symbol idea: one curved line and two anchor points suggesting body position and downward movement
+- Optional subtle ring reference around the mark to echo rep progress and rest timing
+
+### Icon style rules
+
+- No text in the icon
+- No tiny stopwatch, dumbbell, or counter details
+- No photorealism
+- No glossy skeuomorphism
+- No multi-object collage
+- Keep the silhouette readable on a dark and light App Store background
+
+### Alternative icon directions
+
+1. Abstract downward chevron inside a ring, evoking both a push-up descent and repetition.
+2. Monogram-style “PU” fused into a minimal training mark.
+3. A single geometric line figure using two dots and one strong stroke.
+
+### Icon color recommendations
+
+Primary version:
+
+- Background: #E44F3A
+- Symbol: #FFFFFF
+
+Alternate testing versions:
+
+- Deep navy background with white symbol
+- Warm black background with coral symbol
+
+### App Store icon evaluation checklist
+
+- Recognizable at 60x60 px
+- Distinct from generic fitness icons
+- Reads as strength and repetition, not cardio
+- Works without text
+- Survives rounded mask cropping
+
+## Final design direction summary
+
+My Push Ups should feel like a focused coach in your pocket: clear, rhythmic, and quietly motivating. The main experience should revolve around one central circle, one next action, and one trustworthy plan shaped by the user’s actual ability and progression history.[cite:1]
+
+The Replit prototype should therefore prioritize workflow clarity, state transitions, strong numeric hierarchy, and a reusable component system over visual ornament or feature sprawl. The product becomes memorable not by adding more UI, but by making the training loop feel effortless and repeatable.[cite:1]
