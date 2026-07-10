@@ -15,20 +15,15 @@ import { Card, PrimaryButton, SectionTitle } from "@/components/UI";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
-  DAY_LABELS,
   LEVEL_INFO,
   bestMax,
   canLevelUp,
   currentStreak,
   dateKey,
   daysSinceMaxTest,
-  formatSeconds,
-  latestMaxTest,
+  isHabitDay,
   maxTestDue,
   sessionOn,
-  trackForWeekday,
-  weekStartKey,
-  addDays,
 } from "@/lib/training";
 
 export default function TodayScreen() {
@@ -42,14 +37,13 @@ export default function TodayScreen() {
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
   const today = dateKey();
   const weekday = new Date().getDay();
-  const track = trackForWeekday(data.settings, weekday);
+  const habitDay = isHabitDay(data.settings, weekday);
   const doneToday = sessionOn(data.sessions, today);
   const testDue = data.needsMaxTest || maxTestDue(data);
   const streak = currentStreak(data.sessions);
   const best = bestMax(data, data.level);
   const daysSince = daysSinceMaxTest(data);
   const showLevelUp = !data.needsMaxTest && canLevelUp(data);
-  const inDeload = data.deloadRemaining > 0;
 
   return (
     <ScrollView
@@ -110,47 +104,34 @@ export default function TodayScreen() {
                 Done for today
               </Text>
               <Text style={[styles.trackCardMeta, { color: colors.mutedForeground }]}>
-                {doneToday.track === "strength"
-                  ? "Strength session"
-                  : "Habit set"}{" "}
-                · {doneToday.repsPerRound.reduce((a, b) => a + b, 0)} reps
+                Habit set · {doneToday.repsPerRound.reduce((a, b) => a + b, 0)}{" "}
+                reps
               </Text>
             </View>
           </View>
         </Card>
-      ) : track ? (
+      ) : habitDay ? (
         <Card style={[
-          styles.trackCard, 
-          { borderLeftColor: track === "strength" ? colors.strength : colors.habit, 
-            backgroundColor: track === "strength" ? colors.strengthSoft : colors.habitSoft }
+          styles.trackCard,
+          { borderLeftColor: colors.habit, backgroundColor: colors.habitSoft }
         ]}>
           <View style={styles.trackCardHead}>
-            <Text style={[
-              styles.trackTag, 
-              { color: track === "strength" ? colors.strength : colors.secondary }
-            ]}>
-              {track === "strength" ? "Strength · Today" : "Habit · Today"}
+            <Text style={[styles.trackTag, { color: colors.secondary }]}>
+              Habit · Today
             </Text>
-            <Text style={styles.trackCardTime}>
-              {track === "strength" ? "~14 min" : "~1 min"}
-            </Text>
+            <Text style={styles.trackCardTime}>~1 min</Text>
           </View>
           <Text style={[styles.trackCardTitle, { color: colors.foreground }]}>
-            {track === "strength"
-              ? `${inDeload ? 3 : 5} rounds of ${data.roundRepsStrength}`
-              : `1 round of ${data.roundRepsHabit}`}
+            1 round of {data.roundRepsHabit}
           </Text>
           <Text style={[styles.trackCardMeta, { color: colors.mutedForeground }]}>
-            {track === "strength"
-              ? `${LEVEL_INFO[data.level]?.name} · rest ${formatSeconds(data.settings.restSeconds)}${inDeload ? " · deload week" : ""}`
-              : `${LEVEL_INFO[data.level]?.name} · about a minute`}
+            {LEVEL_INFO[data.level]?.name} · about a minute
           </Text>
           <View style={styles.cardBtn}>
             <PrimaryButton
-              label={track === "strength" ? "Start strength session" : "Start habit round"}
-              variant={track === "strength" ? "secondary" : "primary"}
+              label="Start habit round"
               onPress={() =>
-                router.push({ pathname: "/workout", params: { track } })
+                router.push({ pathname: "/workout", params: { track: "habit" } })
               }
               testID="btn-start-training"
             />
@@ -173,7 +154,7 @@ export default function TodayScreen() {
       {showLevelUp ? (
         <View style={[styles.infoCallout, { backgroundColor: colors.success + "20", marginTop: 16 }]}>
           <Text style={[styles.infoCalloutText, { color: colors.success }]}>
-            <Text style={{ fontFamily: "Inter_700Bold" }}>Ready to level up?</Text> You've been strong at {LEVEL_INFO[data.level]?.name.toLowerCase()}.
+            <Text style={{ fontFamily: "Inter_700Bold" }}>Ready to level up?</Text> Your max test shows {LEVEL_INFO[data.level]?.name.toLowerCase()} are getting easy.
           </Text>
           <View style={{ marginTop: 12 }}>
             <PrimaryButton

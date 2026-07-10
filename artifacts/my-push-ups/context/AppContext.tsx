@@ -11,9 +11,7 @@ import React, {
 import { AppState } from "react-native";
 
 import {
-  applyStrengthResult,
   computeHabitReps,
-  computeStrengthReps,
   createInitialData,
   evaluateHabitWeek,
   latestMaxTest,
@@ -76,24 +74,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (cancelled) return;
         if (raw) {
-          const parsed = JSON.parse(raw) as AppData;
-          // Migrate pre-`days` reminder configs.
-          if (!Array.isArray(parsed.settings.habitReminder?.days)) {
-            parsed.settings.habitReminder = {
-              ...parsed.settings.habitReminder,
-              days: [0, 1, 2, 3, 4, 5, 6],
-            };
+          // Sanitize on load: migrates data written by older app versions
+          // (strength-track fields, pre-`days` reminder configs) to the
+          // current shape.
+          const parsed = sanitizeImport(JSON.parse(raw));
+          if (parsed) {
+            const weekly = evaluateHabitWeek(parsed);
+            const next = weekly ? { ...parsed, ...weekly } : parsed;
+            setData(next);
+            if (weekly) enqueueWrite(next);
           }
-          if (!Array.isArray(parsed.settings.strengthReminder?.days)) {
-            parsed.settings.strengthReminder = {
-              ...parsed.settings.strengthReminder,
-              days: parsed.settings.strengthDays ?? [1, 3, 5],
-            };
-          }
-          const weekly = evaluateHabitWeek(parsed);
-          const next = weekly ? { ...parsed, ...weekly } : parsed;
-          setData(next);
-          if (weekly) enqueueWrite(next);
         }
       } catch {
         // Corrupt data — start fresh rather than crash.
@@ -168,9 +158,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           { date: dateKey(), level: prev.level, reps },
         ],
         roundRepsHabit: computeHabitReps(reps),
-        roundRepsStrength: computeStrengthReps(reps, prev.level),
-        strengthSuccessStreak: 0,
-        deloadRemaining: 0,
         needsMaxTest: false,
       }));
     },
@@ -183,14 +170,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const weekly = evaluateHabitWeek(prev);
         const base = weekly ? { ...prev, ...weekly } : prev;
         const session: SessionEntry = { ...entry, id: newId() };
-        let next: AppData = {
+        return {
           ...base,
           sessions: [...base.sessions, session],
         };
-        if (session.track === "strength") {
-          next = { ...next, ...applyStrengthResult(base, session) };
-        }
-        return next;
       });
     },
     [mutate],
@@ -215,14 +198,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ...prev,
           level,
           needsMaxTest: !test,
-          strengthSuccessStreak: 0,
-          deloadRemaining: 0,
-          ...(test
-            ? {
-                roundRepsHabit: computeHabitReps(test.reps),
-                roundRepsStrength: computeStrengthReps(test.reps, level),
-              }
-            : {}),
+          ...(test ? { roundRepsHabit: computeHabitReps(test.reps) } : {}),
         };
       });
     },
@@ -243,8 +219,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         level: (prev.level + 1) as Level,
         needsMaxTest: true,
-        strengthSuccessStreak: 0,
-        deloadRemaining: 0,
       };
     });
   }, [mutate]);

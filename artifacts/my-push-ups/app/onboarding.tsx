@@ -18,12 +18,7 @@ import Svg, { Circle, Path } from "react-native-svg";
 import { Card, Chip, PrimaryButton } from "@/components/UI";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
-import {
-  LEVEL_INFO,
-  computeHabitReps,
-  computeStrengthReps,
-  formatSeconds,
-} from "@/lib/training";
+import { LEVEL_INFO, computeHabitReps } from "@/lib/training";
 import type { Level } from "@/lib/types";
 
 type Step = "welcome" | "goal" | "health" | "warning" | "level" | "levelresult" | "maxtest" | "preview";
@@ -370,23 +365,13 @@ export default function OnboardingScreen() {
                 1 round of {computeHabitReps(maxReps)}
               </Text>
               <Text style={[styles.previewNote, { color: colors.mutedForeground }]}>
-                A quick morning set — about a minute.
-              </Text>
-            </Card>
-            <Card style={styles.previewCard}>
-              <Text style={[styles.previewLabel, { color: colors.mutedForeground }]}>
-                Strength — 3 days/week
-              </Text>
-              <Text style={[styles.previewValue, { color: colors.foreground }]}>
-                5 rounds of {computeStrengthReps(maxReps, level)}
-              </Text>
-              <Text style={[styles.previewNote, { color: colors.mutedForeground }]}>
-                Rest {formatSeconds(120)} between rounds.
+                A quick morning set — about a minute. Add a bonus round when
+                you feel good.
               </Text>
             </Card>
             <Text style={[styles.body, { color: colors.mutedForeground, marginTop: 12 }]}>
-              As sessions get easier, your reps go up automatically. Goal:{" "}
-              {goal} continuous push-ups.
+              Do it most days of the week and your reps go up automatically.
+              Goal: {goal} continuous push-ups.
             </Text>
             <View style={styles.spacer} />
             <PrimaryButton

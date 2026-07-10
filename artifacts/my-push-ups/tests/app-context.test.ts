@@ -4,12 +4,7 @@ import React from "react";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
-import {
-  addDays,
-  applyStrengthResult,
-  createInitialData,
-  weekStartKey,
-} from "../lib/training";
+import { addDays, createInitialData, weekStartKey } from "../lib/training";
 import type { AppData, SessionEntry } from "../lib/types";
 
 // ---------------------------------------------------------------------------
@@ -164,12 +159,11 @@ function makeSessionInput(
 ): Omit<SessionEntry, "id"> {
   return {
     date: "2026-07-06",
-    track: "strength",
     level: 2,
-    targetReps: 5,
-    roundsPlanned: 5,
-    roundsCompleted: 5,
-    repsPerRound: [5, 5, 5, 5, 5],
+    targetReps: 4,
+    roundsPlanned: 1,
+    roundsCompleted: 1,
+    repsPerRound: [4],
     rpe: 6,
     painFlags: [],
     ...overrides,
@@ -193,31 +187,17 @@ after(() => {
 // ---------------------------------------------------------------------------
 
 describe("AppContext: completeSession", () => {
-  it("applies applyStrengthResult exactly once for a strength session", async () => {
-    // streak = 1 and a strong session means one application bumps
-    // roundRepsStrength by exactly +1 and resets the streak. A double
-    // application would either bump reps twice or leave streak at 1.
-    const seed = makeData({
-      roundRepsStrength: 5,
-      strengthSuccessStreak: 1,
-    });
+  it("appends the session and persists it", async () => {
+    const seed = makeData();
     seedStorage(seed);
     const { ctx, renderer } = await mountProvider();
 
-    const entry = makeSessionInput({ targetReps: 5 });
-    const expected = applyStrengthResult(seed, {
-      ...entry,
-      id: "expected",
-    });
-    assert.equal(expected.roundRepsStrength, 6); // sanity: strong => +1
-
-    await runAction(() => ctx.current!.completeSession(entry));
+    await runAction(() => ctx.current!.completeSession(makeSessionInput()));
 
     const data = ctx.current!.data!;
     assert.equal(data.sessions.length, 1);
-    assert.equal(data.roundRepsStrength, 6);
-    assert.equal(data.strengthSuccessStreak, 0);
-    assert.equal(data.deloadRemaining, expected.deloadRemaining);
+    assert.equal(data.sessions[0]?.targetReps, 4);
+    assert.equal(data.roundRepsHabit, seed.roundRepsHabit);
 
     // Persisted copy matches in-memory state exactly.
     assert.deepEqual(persisted(), data);
@@ -225,35 +205,8 @@ describe("AppContext: completeSession", () => {
     await act(async () => renderer.unmount());
   });
 
-  it("does not apply strength progression for habit sessions", async () => {
-    const seed = makeData({
-      roundRepsStrength: 5,
-      strengthSuccessStreak: 1,
-    });
-    seedStorage(seed);
-    const { ctx, renderer } = await mountProvider();
-
-    await runAction(() =>
-      ctx.current!.completeSession(
-        makeSessionInput({ track: "habit", targetReps: 4 }),
-      ),
-    );
-
-    const data = ctx.current!.data!;
-    assert.equal(data.sessions.length, 1);
-    assert.equal(data.roundRepsStrength, 5);
-    assert.equal(data.strengthSuccessStreak, 1);
-    assert.deepEqual(persisted(), data);
-
-    await act(async () => renderer.unmount());
-  });
-
   it("records concurrent saves without losing either session", async () => {
-    const seed = makeData({
-      roundRepsStrength: 5,
-      strengthSuccessStreak: 0,
-    });
-    seedStorage(seed);
+    seedStorage(makeData());
     const { ctx, renderer } = await mountProvider();
 
     await runAction(() =>
@@ -267,9 +220,24 @@ describe("AppContext: completeSession", () => {
     assert.equal(data.sessions.length, 2);
     const ids = new Set(data.sessions.map((s) => s.id));
     assert.equal(ids.size, 2, "each saved session gets a distinct id");
-    // Two strong sessions in a row: streak 0 -> 1 -> promotion (+1 rep).
-    assert.equal(data.roundRepsStrength, 6);
-    assert.equal(data.strengthSuccessStreak, 0);
+    assert.deepEqual(persisted(), data);
+
+    await act(async () => renderer.unmount());
+  });
+});
+
+describe("AppContext: recordMaxTest", () => {
+  it("appends a max test and recalibrates habit reps", async () => {
+    seedStorage(makeData());
+    const { ctx, renderer } = await mountProvider();
+
+    await runAction(() => ctx.current!.recordMaxTest(20));
+
+    const data = ctx.current!.data!;
+    assert.equal(data.maxTests.length, 2);
+    assert.equal(data.maxTests[1]?.reps, 20);
+    assert.equal(data.roundRepsHabit, 8); // 40% of 20
+    assert.equal(data.needsMaxTest, false);
     assert.deepEqual(persisted(), data);
 
     await act(async () => renderer.unmount());
@@ -288,24 +256,22 @@ describe("AppContext: weekly habit evaluation on load", () => {
         {
           id: "h1",
           date: prevWeek,
-          track: "habit",
           level: 2,
           targetReps: 4,
-          roundsPlanned: 3,
-          roundsCompleted: 3,
-          repsPerRound: [4, 4, 4],
+          roundsPlanned: 1,
+          roundsCompleted: 1,
+          repsPerRound: [4],
           rpe: 5,
           painFlags: [],
         },
         {
           id: "h2",
           date: addDays(prevWeek, 2),
-          track: "habit",
           level: 2,
           targetReps: 4,
-          roundsPlanned: 3,
-          roundsCompleted: 3,
-          repsPerRound: [4, 4, 4],
+          roundsPlanned: 1,
+          roundsCompleted: 1,
+          repsPerRound: [4],
           rpe: 5,
           painFlags: [],
         },
@@ -388,8 +354,7 @@ describe("AppContext: weekly habit evaluation on load", () => {
 
 describe("AppContext: persistence round-trip", () => {
   it("reloads persisted state without mutation", async () => {
-    const seed = makeData({ roundRepsStrength: 5, strengthSuccessStreak: 0 });
-    seedStorage(seed);
+    seedStorage(makeData());
 
     const first = await mountProvider();
     await runAction(() =>
@@ -410,18 +375,51 @@ describe("AppContext: persistence round-trip", () => {
     await act(async () => second.renderer.unmount());
   });
 
-  it("migrates legacy reminder configs without days arrays", async () => {
+  it("migrates stored data from the strength-track era", async () => {
+    // Shape written by app versions that still had the strength track.
     const seed = makeData();
     const legacy = JSON.parse(JSON.stringify(seed)) as Record<string, any>;
+    legacy.roundRepsStrength = 5;
+    legacy.strengthSuccessStreak = 1;
+    legacy.deloadRemaining = 0;
+    legacy.settings.restSeconds = 120;
+    legacy.settings.strengthDays = [1, 3, 5];
+    legacy.settings.strengthReminder = {
+      enabled: true,
+      hour: 18,
+      minute: 0,
+      days: [1, 3, 5],
+    };
     delete legacy.settings.habitReminder.days;
-    delete legacy.settings.strengthReminder.days;
+    legacy.sessions = [
+      {
+        id: "st1",
+        date: "2026-07-01",
+        track: "strength",
+        level: 2,
+        targetReps: 5,
+        roundsPlanned: 5,
+        roundsCompleted: 5,
+        repsPerRound: [5, 5, 5, 5, 5],
+        rpe: 6,
+        painFlags: [],
+      },
+    ];
     storage.set(STORAGE_KEY, JSON.stringify(legacy));
 
     const { ctx, renderer } = await mountProvider();
 
-    const settings = ctx.current!.data!.settings;
-    assert.deepEqual(settings.habitReminder.days, [0, 1, 2, 3, 4, 5, 6]);
-    assert.deepEqual(settings.strengthReminder.days, seed.settings.strengthDays);
+    const data = ctx.current!.data!;
+    // Strength-era session survives as plain history.
+    assert.equal(data.sessions.length, 1);
+    assert.equal("track" in data.sessions[0]!, false);
+    // Strength fields are gone; habit fields intact.
+    assert.equal("roundRepsStrength" in data, false);
+    assert.equal("strengthDays" in data.settings, false);
+    assert.equal("strengthReminder" in data.settings, false);
+    assert.equal(data.roundRepsHabit, seed.roundRepsHabit);
+    // Pre-`days` reminder config gets the default days.
+    assert.deepEqual(data.settings.habitReminder.days, [0, 1, 2, 3, 4, 5, 6]);
 
     await act(async () => renderer.unmount());
   });

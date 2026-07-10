@@ -2,38 +2,31 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   addDays,
-  applyStrengthResult,
   canLevelUp,
   clamp,
   computeHabitReps,
-  computeStrengthReps,
   createInitialData,
   currentStreak,
   dateKey,
   daysBetween,
   evaluateHabitWeek,
-  failedRounds,
   formatSeconds,
-  isNonConsecutiveDays,
-  isStrongSession,
+  isHabitDay,
   keyToDate,
   maxTestDue,
-  sanitizeImport,
-  strengthCap,
   weekStartKey,
 } from "../lib/training";
-import type { AppData, SessionEntry } from "../lib/types";
+import type { AppData, SessionEntry, Settings } from "../lib/types";
 
 function makeSession(overrides: Partial<SessionEntry> = {}): SessionEntry {
   return {
     id: "s1",
     date: "2026-07-06",
-    track: "strength",
     level: 2,
     targetReps: 5,
-    roundsPlanned: 5,
-    roundsCompleted: 5,
-    repsPerRound: [5, 5, 5, 5, 5],
+    roundsPlanned: 1,
+    roundsCompleted: 1,
+    repsPerRound: [5],
     rpe: 6,
     painFlags: [],
     ...overrides,
@@ -113,166 +106,32 @@ describe("rep computation", () => {
     assert.equal(computeHabitReps(2), 3);
     assert.equal(computeHabitReps(100), 15);
   });
-
-  it("strengthCap depends on level and max", () => {
-    assert.equal(strengthCap(0, 10), 10);
-    assert.equal(strengthCap(1, 10), 12);
-    assert.equal(strengthCap(2, 10), 15);
-    assert.equal(strengthCap(3, 10), 15);
-    assert.equal(strengthCap(3, 20), 40);
-  });
-
-  it("computeStrengthReps clamps between 3 and cap", () => {
-    assert.equal(computeStrengthReps(10, 2), 3);
-    assert.equal(computeStrengthReps(30, 2), 4);
-    assert.equal(computeStrengthReps(200, 2), 15);
-  });
-
-  it("isNonConsecutiveDays rejects adjacent days including Sun-Sat wrap", () => {
-    assert.equal(isNonConsecutiveDays([1, 3, 5]), true);
-    assert.equal(isNonConsecutiveDays([1, 2, 4]), false);
-    assert.equal(isNonConsecutiveDays([0, 3, 6]), false); // Sun & Sat wrap around
-    assert.equal(isNonConsecutiveDays([0, 2, 4]), true);
-  });
 });
 
-describe("session classification", () => {
-  it("isStrongSession requires rpe<=7 and all targets met", () => {
-    assert.equal(isStrongSession(makeSession()), true);
-    assert.equal(isStrongSession(makeSession({ rpe: 8 })), false);
-    assert.equal(isStrongSession(makeSession({ rpe: null })), false);
-    assert.equal(
-      isStrongSession(makeSession({ repsPerRound: [5, 5, 5, 5, 4] })),
-      false,
-    );
-    assert.equal(isStrongSession(makeSession({ roundsCompleted: 4 })), false);
-  });
+describe("isHabitDay", () => {
+  function settings(habitDaysPerWeek: number): Settings {
+    return { ...makeData().settings, habitDaysPerWeek };
+  }
 
-  it("failedRounds counts rounds below target", () => {
-    assert.equal(failedRounds(makeSession()), 0);
-    assert.equal(
-      failedRounds(makeSession({ repsPerRound: [5, 4, 3, 5, 5] })),
-      2,
-    );
-    assert.equal(failedRounds(makeSession({ repsPerRound: [5, 5, 5] })), 2);
-  });
-});
-
-describe("applyStrengthResult", () => {
-  it("one strong session builds streak without changing reps", () => {
-    const data = makeData({ roundRepsStrength: 5, strengthSuccessStreak: 0 });
-    const out = applyStrengthResult(data, makeSession({ targetReps: 5 }));
-    assert.equal(out.roundRepsStrength, 5);
-    assert.equal(out.strengthSuccessStreak, 1);
-    assert.equal(out.deloadRemaining, 0);
-  });
-
-  it("two strong sessions add one rep and reset streak", () => {
-    const data = makeData({ roundRepsStrength: 5, strengthSuccessStreak: 1 });
-    const out = applyStrengthResult(data, makeSession({ targetReps: 5 }));
-    assert.equal(out.roundRepsStrength, 6);
-    assert.equal(out.strengthSuccessStreak, 0);
-  });
-
-  it("RPE >= 9 drops a rep and resets streak", () => {
-    const data = makeData({ roundRepsStrength: 6, strengthSuccessStreak: 1 });
-    const out = applyStrengthResult(data, makeSession({ rpe: 9 }));
-    assert.equal(out.roundRepsStrength, 5);
-    assert.equal(out.strengthSuccessStreak, 0);
-  });
-
-  it("2+ failed rounds drop a rep even with low RPE", () => {
-    const data = makeData({ roundRepsStrength: 6, strengthSuccessStreak: 1 });
-    const out = applyStrengthResult(
-      data,
-      makeSession({ rpe: 5, repsPerRound: [5, 4, 4, 5, 5], targetReps: 5 }),
-    );
-    assert.equal(out.roundRepsStrength, 5);
-    assert.equal(out.strengthSuccessStreak, 0);
-  });
-
-  it("exactly 1 failed round with ok RPE resets streak but keeps reps", () => {
-    const data = makeData({ roundRepsStrength: 6, strengthSuccessStreak: 1 });
-    const out = applyStrengthResult(
-      data,
-      makeSession({ rpe: 6, repsPerRound: [6, 5, 6, 6, 6], targetReps: 6 }),
-    );
-    assert.equal(out.roundRepsStrength, 6);
-    assert.equal(out.strengthSuccessStreak, 0);
-  });
-
-  it("reps never drop below 3", () => {
-    const data = makeData({ roundRepsStrength: 3 });
-    const out = applyStrengthResult(data, makeSession({ rpe: 10 }));
-    assert.equal(out.roundRepsStrength, 3);
-  });
-
-  it("reaching the cap triggers a 3-session deload exactly once", () => {
-    // level 2 with max 10 -> cap 15
-    let data = makeData({
-      roundRepsStrength: 14,
-      strengthSuccessStreak: 1,
-      deloadRemaining: 0,
-    });
-    const out = applyStrengthResult(
-      data,
-      makeSession({ targetReps: 14, repsPerRound: [14, 14, 14, 14, 14] }),
-    );
-    assert.equal(out.roundRepsStrength, 15);
-    assert.equal(out.deloadRemaining, 3);
-
-    // subsequent strong sessions at cap must NOT re-trigger deload
-    data = { ...data, ...out } as AppData;
-    for (const expected of [2, 1, 0]) {
-      const step = applyStrengthResult(
-        data,
-        makeSession({ targetReps: 15, repsPerRound: [15, 15, 15, 15, 15] }),
-      );
-      assert.equal(step.roundRepsStrength, 15);
-      assert.equal(step.deloadRemaining, expected);
-      data = { ...data, ...step } as AppData;
-    }
-
-    // after deload ends, strong sessions at cap never restart a deload
-    for (let i = 0; i < 4; i++) {
-      const step = applyStrengthResult(
-        data,
-        makeSession({ targetReps: 15, repsPerRound: [15, 15, 15, 15, 15] }),
-      );
-      assert.equal(step.deloadRemaining, 0);
-      assert.equal(step.roundRepsStrength, 15);
-      data = { ...data, ...step } as AppData;
+  it("7 days per week means every day", () => {
+    for (let wd = 0; wd <= 6; wd++) {
+      assert.equal(isHabitDay(settings(7), wd), true);
     }
   });
 
-  it("dropping below the cap and climbing back re-triggers deload once", () => {
-    let data = makeData({
-      roundRepsStrength: 15,
-      strengthSuccessStreak: 0,
-      deloadRemaining: 0,
-    });
-    const drop = applyStrengthResult(data, makeSession({ rpe: 9 }));
-    assert.equal(drop.roundRepsStrength, 14);
-    data = { ...data, ...drop } as AppData;
-
-    // two strong sessions -> back to cap -> new deload
-    let step = applyStrengthResult(
-      data,
-      makeSession({ targetReps: 14, repsPerRound: [14, 14, 14, 14, 14] }),
-    );
-    data = { ...data, ...step } as AppData;
-    step = applyStrengthResult(
-      data,
-      makeSession({ targetReps: 14, repsPerRound: [14, 14, 14, 14, 14] }),
-    );
-    assert.equal(step.roundRepsStrength, 15);
-    assert.equal(step.deloadRemaining, 3);
+  it("6 days per week skips Sunday", () => {
+    assert.equal(isHabitDay(settings(6), 0), false);
+    for (let wd = 1; wd <= 6; wd++) {
+      assert.equal(isHabitDay(settings(6), wd), true);
+    }
   });
 
-  it("uses default max of 5 when no max test exists for level", () => {
-    const data = makeData({ maxTests: [], roundRepsStrength: 3 });
-    const out = applyStrengthResult(data, makeSession());
-    assert.equal(typeof out.roundRepsStrength, "number");
+  it("5 days per week means weekdays only", () => {
+    assert.equal(isHabitDay(settings(5), 0), false);
+    assert.equal(isHabitDay(settings(5), 6), false);
+    for (let wd = 1; wd <= 5; wd++) {
+      assert.equal(isHabitDay(settings(5), wd), true);
+    }
   });
 });
 
@@ -282,7 +141,7 @@ describe("evaluateHabitWeek", () => {
   const prevWeek = ["2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05"];
 
   function habit(date: string, rpe: number | null): SessionEntry {
-    return makeSession({ id: `h-${date}`, date, track: "habit", rpe });
+    return makeSession({ id: `h-${date}`, date, rpe });
   }
 
   it("returns null when the week was already evaluated", () => {
@@ -335,7 +194,7 @@ describe("evaluateHabitWeek", () => {
     assert.equal(out.roundRepsHabit, 5);
   });
 
-  it("keeps reps unchanged when there were no habit sessions", () => {
+  it("keeps reps unchanged when there were no sessions", () => {
     const data = makeData({
       roundRepsHabit: 5,
       lastHabitWeekEvaluated: "2026-06-29",
@@ -369,19 +228,18 @@ describe("evaluateHabitWeek", () => {
     assert.equal(down?.roundRepsHabit, 3);
   });
 
-  it("ignores strength sessions and sessions outside the previous week", () => {
+  it("ignores sessions outside the previous week", () => {
     const data = makeData({
       roundRepsHabit: 5,
       lastHabitWeekEvaluated: "2026-06-29",
       sessions: [
-        makeSession({ id: "st", date: "2026-06-30", track: "strength", rpe: 10 }),
         habit("2026-06-28", 10), // week before previous
         habit("2026-07-06", 10), // current week
       ],
     });
     const out = evaluateHabitWeek(data, monday);
     assert.ok(out);
-    // no habit sessions in previous week -> unchanged
+    // no sessions in previous week -> unchanged
     assert.equal(out.roundRepsHabit, 5);
   });
 
@@ -397,59 +255,49 @@ describe("evaluateHabitWeek", () => {
 });
 
 describe("canLevelUp", () => {
-  function strong(date: string, level: 0 | 1 | 2 | 3): SessionEntry {
-    return makeSession({ id: `s-${date}`, date, level, track: "strength" });
-  }
-
   it("never allows level up at the top level", () => {
     const data = makeData({
       level: 3,
-      roundRepsStrength: 40,
-      sessions: [strong("2026-07-01", 3), strong("2026-07-03", 3)],
+      maxTests: [{ date: "2026-07-01", level: 3, reps: 30 }],
     });
     assert.equal(canLevelUp(data), false);
   });
 
-  it("requires reps at or above the threshold", () => {
+  it("requires the latest max test to reach the threshold", () => {
+    const below = makeData({
+      level: 2,
+      maxTests: [{ date: "2026-07-01", level: 2, reps: 7 }],
+    });
+    assert.equal(canLevelUp(below), false);
+
+    const at = makeData({
+      level: 2,
+      maxTests: [{ date: "2026-07-01", level: 2, reps: 8 }],
+    });
+    assert.equal(canLevelUp(at), true);
+  });
+
+  it("uses the latest test at the current level, not the best", () => {
     const data = makeData({
       level: 2,
-      roundRepsStrength: 7,
-      sessions: [strong("2026-07-01", 2), strong("2026-07-03", 2)],
+      maxTests: [
+        { date: "2026-06-01", level: 2, reps: 10 },
+        { date: "2026-07-01", level: 2, reps: 6 },
+      ],
     });
     assert.equal(canLevelUp(data), false);
   });
 
-  it("requires the last two strength sessions at this level to be strong", () => {
-    const base = makeData({ level: 2, roundRepsStrength: 8 });
-    assert.equal(
-      canLevelUp({
-        ...base,
-        sessions: [strong("2026-07-01", 2), strong("2026-07-03", 2)],
-      }),
-      true,
-    );
-    assert.equal(
-      canLevelUp({
-        ...base,
-        sessions: [
-          strong("2026-07-01", 2),
-          makeSession({ id: "weak", date: "2026-07-03", level: 2, rpe: 9 }),
-        ],
-      }),
-      false,
-    );
-    assert.equal(
-      canLevelUp({ ...base, sessions: [strong("2026-07-03", 2)] }),
-      false,
-    );
-  });
-
-  it("ignores sessions from other levels", () => {
+  it("ignores max tests from other levels", () => {
     const data = makeData({
       level: 2,
-      roundRepsStrength: 8,
-      sessions: [strong("2026-07-01", 1), strong("2026-07-03", 1)],
+      maxTests: [{ date: "2026-07-01", level: 1, reps: 20 }],
     });
+    assert.equal(canLevelUp(data), false);
+  });
+
+  it("requires at least one max test at the current level", () => {
+    const data = makeData({ level: 2, maxTests: [] });
     assert.equal(canLevelUp(data), false);
   });
 });

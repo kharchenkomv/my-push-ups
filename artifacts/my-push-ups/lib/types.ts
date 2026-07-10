@@ -1,5 +1,4 @@
 export type Level = 0 | 1 | 2 | 3;
-export type Track = "habit" | "strength";
 export type PainFlag = "wrist" | "shoulder" | "chest";
 
 export interface HealthAnswers {
@@ -17,14 +16,11 @@ export interface ReminderConfig {
 }
 
 export interface Settings {
-  restSeconds: number;
   habitDaysPerWeek: number;
-  strengthDays: number[];
   goalReps: number;
   sound: boolean;
   haptics: boolean;
   habitReminder: ReminderConfig;
-  strengthReminder: ReminderConfig;
 }
 
 export interface MaxTestEntry {
@@ -36,7 +32,6 @@ export interface MaxTestEntry {
 export interface SessionEntry {
   id: string;
   date: string;
-  track: Track;
   level: Level;
   targetReps: number;
   roundsPlanned: number;
@@ -54,9 +49,6 @@ export interface AppData {
   maxTests: MaxTestEntry[];
   sessions: SessionEntry[];
   roundRepsHabit: number;
-  roundRepsStrength: number;
-  strengthSuccessStreak: number;
-  deloadRemaining: number;
   lastHabitWeekEvaluated: string;
   needsMaxTest: boolean;
 }

@@ -1,6 +1,6 @@
 # My Push Ups
 
-An offline, no-login push-up trainer mobile app: a tiny daily habit set plus three weekly strength sessions, auto-progressing toward a user's goal (e.g. 100 push-ups).
+An offline, no-login push-up trainer mobile app: a tiny daily habit set, auto-progressing toward a user's goal (e.g. 100 push-ups). (The former strength track was removed 2026-07-10 — habit-only now.)
 
 ## Run & Operate
 
@@ -23,21 +23,21 @@ An offline, no-login push-up trainer mobile app: a tiny daily habit set plus thr
 - `artifacts/my-push-ups/lib/types.ts` — AppData / Settings / SessionEntry types
 - `artifacts/my-push-ups/context/AppContext.tsx` — single state provider; atomic `mutate()` with serialized AsyncStorage writes
 - `artifacts/my-push-ups/app/onboarding.tsx` — welcome → goal → health screening → level → max test → preview (also exports `Stepper`)
-- `artifacts/my-push-ups/app/workout.tsx` — big-circle workout flow (`track` param: `habit` | `strength` | `maxtest`)
+- `artifacts/my-push-ups/app/workout.tsx` — big-circle workout flow (`track` param: `habit` | `maxtest`)
 - `artifacts/my-push-ups/app/(tabs)/` — Today / Plan / Progress / Settings screens; `_layout.tsx` holds the onboarding redirect gate
 - `artifacts/my-push-ups/lib/notifications.ts` — weekly local reminders (dynamic import, web-guarded)
 
 ## Architecture decisions
 
 - All training logic is pure functions in `lib/training.ts` so it's testable and UI-independent
-- One session per calendar day; strength days (default Mon/Wed/Fri) override habit days
-- Progression: +1 rep after 2 consecutive complete sessions at RPE≤7; −1 on RPE≥9 or 2+ failed rounds; 3-session deload when hitting the level cap; re-test prompt after 21 days
-- Habit reps = clamp(floor(max×0.4), 3, 15); strength per-round = round(max×2/3/5) clamped to level cap (Full extends to 40 when max ≥ 20)
+- One session per calendar day; habit days set by `habitDaysPerWeek` (5 = weekdays, 6 = all but Sunday, 7 = daily)
+- Progression (weekly): +1 rep after 5+ sessions at avg RPE≤7; −1 when avg RPE≥8 or fewer than 3 sessions; level-up offered when the latest max test hits 8+; re-test prompt after 21 days
+- Habit reps = clamp(floor(max×0.4), 3, 15); optional bonus round with a fixed 45 s rest
 - Import/export is plain JSON via share sheet / paste; imports are sanitized field-by-field before persisting
 
 ## Product
 
-- 4 tabs: Today (action card, week strip, goal progress), Plan (schedule + prescription), Progress (streak, heatmap, milestones, test history), Settings (rest 60–150s, days, goal, level override, reminders, export/import/reset, health screening)
+- 4 tabs: Today (action card, week strip, goal progress), Plan (schedule + prescription), Progress (streak, heatmap, milestones, test history), Settings (habit days, goal, level override, reminder, export/import/reset, health screening)
 - Onboarding includes a physician warning when any health question is answered yes
 - Coral #E44F3A on off-white #F6F4EF, full dark mode, haptics on round/rest transitions
 

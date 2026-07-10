@@ -5,7 +5,6 @@ import type {
   MaxTestEntry,
   SessionEntry,
   Settings,
-  Track,
 } from "./types";
 
 export const LEVEL_INFO: {
@@ -91,27 +90,6 @@ export function computeHabitReps(maxReps: number): number {
   return clamp(Math.floor(maxReps * 0.4), 3, 15);
 }
 
-export function strengthCap(level: Level, maxReps: number): number {
-  if (level === 3) return maxReps >= 20 ? 40 : 15;
-  return [10, 12, 15][level] ?? 15;
-}
-
-export function computeStrengthReps(maxReps: number, level: Level): number {
-  const perRound = (maxReps * 2) / 3 / 5;
-  return clamp(Math.round(perRound), 3, strengthCap(level, maxReps));
-}
-
-export function isNonConsecutiveDays(days: number[]): boolean {
-  for (const a of days) {
-    for (const b of days) {
-      if (a === b) continue;
-      const diff = Math.abs(a - b);
-      if (diff === 1 || diff === 6) return false;
-    }
-  }
-  return true;
-}
-
 export function latestMaxTest(
   data: AppData,
   level: Level,
@@ -131,15 +109,9 @@ export function maxTestDue(data: AppData): boolean {
   return days === null || days >= RETEST_DAYS;
 }
 
-export function trackForWeekday(
-  settings: Settings,
-  weekday: number,
-): Track | null {
-  if (settings.strengthDays.includes(weekday)) return "strength";
+export function isHabitDay(settings: Settings, weekday: number): boolean {
   const n = settings.habitDaysPerWeek;
-  const habitOk =
-    n >= 7 || (n === 6 ? weekday !== 0 : weekday >= 1 && weekday <= 5);
-  return habitOk ? "habit" : null;
+  return n >= 7 || (n === 6 ? weekday !== 0 : weekday >= 1 && weekday <= 5);
 }
 
 export function sessionOn(
@@ -147,56 +119,6 @@ export function sessionOn(
   key: string,
 ): SessionEntry | undefined {
   return sessions.find((s) => s.date === key);
-}
-
-export function isStrongSession(s: SessionEntry): boolean {
-  return (
-    s.rpe !== null &&
-    s.rpe <= 7 &&
-    s.roundsCompleted >= s.roundsPlanned &&
-    s.repsPerRound.every((r) => r >= s.targetReps)
-  );
-}
-
-export function failedRounds(s: SessionEntry): number {
-  const met = s.repsPerRound.filter((r) => r >= s.targetReps).length;
-  return Math.max(0, s.roundsPlanned - met);
-}
-
-export function applyStrengthResult(
-  data: AppData,
-  s: SessionEntry,
-): Partial<AppData> {
-  const max = latestMaxTest(data, data.level)?.reps ?? 5;
-  const cap = strengthCap(data.level, max);
-  let reps = data.roundRepsStrength;
-  let streak = data.strengthSuccessStreak;
-  let deload = data.deloadRemaining > 0 ? data.deloadRemaining - 1 : 0;
-  const wasInDeload = data.deloadRemaining > 0;
-
-  if ((s.rpe ?? 0) >= 9 || failedRounds(s) > 1) {
-    reps = Math.max(3, reps - 1);
-    streak = 0;
-  } else if (isStrongSession(s)) {
-    streak += 1;
-    if (streak >= 2) {
-      streak = 0;
-      if (reps < cap) {
-        reps += 1;
-        if (reps >= cap && !wasInDeload && deload === 0) {
-          deload = 3;
-        }
-      }
-    }
-  } else {
-    streak = 0;
-  }
-
-  return {
-    roundRepsStrength: reps,
-    strengthSuccessStreak: streak,
-    deloadRemaining: deload,
-  };
 }
 
 export function evaluateHabitWeek(
@@ -207,7 +129,7 @@ export function evaluateHabitWeek(
   if (data.lastHabitWeekEvaluated === currentWeek) return null;
   const prevStart = addDays(currentWeek, -7);
   const prevSessions = data.sessions.filter(
-    (s) => s.track === "habit" && s.date >= prevStart && s.date < currentWeek,
+    (s) => s.date >= prevStart && s.date < currentWeek,
   );
   let reps = data.roundRepsHabit;
   if (prevSessions.length > 0) {
@@ -228,11 +150,8 @@ export function evaluateHabitWeek(
 export function canLevelUp(data: AppData): boolean {
   if (data.level >= 3) return false;
   const threshold = LEVEL_UP_REPS[data.level] ?? 8;
-  if (data.roundRepsStrength < threshold) return false;
-  const recent = data.sessions
-    .filter((s) => s.track === "strength" && s.level === data.level)
-    .slice(-2);
-  return recent.length === 2 && recent.every(isStrongSession);
+  const latest = latestMaxTest(data, data.level);
+  return latest !== null && latest.reps >= threshold;
 }
 
 export function currentStreak(
@@ -261,14 +180,11 @@ export function bestMax(data: AppData, level: Level): number {
 
 export function defaultSettings(goalReps: number): Settings {
   return {
-    restSeconds: 120,
     habitDaysPerWeek: 7,
-    strengthDays: [1, 3, 5],
     goalReps,
     sound: true,
     haptics: true,
     habitReminder: { enabled: false, hour: 7, minute: 0, days: [0, 1, 2, 3, 4, 5, 6] },
-    strengthReminder: { enabled: false, hour: 18, minute: 0, days: [1, 3, 5] },
   };
 }
 
@@ -287,9 +203,6 @@ export function createInitialData(params: {
     maxTests: [{ date: dateKey(), level, reps: maxReps }],
     sessions: [],
     roundRepsHabit: computeHabitReps(maxReps),
-    roundRepsStrength: computeStrengthReps(maxReps, level),
-    strengthSuccessStreak: 0,
-    deloadRemaining: 0,
     lastHabitWeekEvaluated: weekStartKey(),
     needsMaxTest: false,
   };
@@ -318,7 +231,6 @@ function isValidSession(s: unknown): s is SessionEntry {
   return (
     typeof o.date === "string" &&
     /^\d{4}-\d{2}-\d{2}$/.test(o.date) &&
-    (o.track === "habit" || o.track === "strength") &&
     typeof o.level === "number" &&
     o.level >= 0 &&
     o.level <= 3 &&
@@ -362,6 +274,9 @@ function sanitizeReminder(
   };
 }
 
+// Accepts current backups as well as legacy ones from the strength-track era:
+// unknown fields (roundRepsStrength, strengthDays, track, …) are dropped and
+// former strength sessions are kept as plain sessions so history survives.
 export function sanitizeImport(raw: unknown): AppData | null {
   if (typeof raw !== "object" || raw === null) return null;
   const o = raw as Record<string, unknown>;
@@ -391,7 +306,6 @@ export function sanitizeImport(raw: unknown): AppData | null {
     .map((s) => ({
       id: typeof (s as SessionEntry).id === "string" ? (s as SessionEntry).id : newId(),
       date: s.date,
-      track: s.track,
       level: Math.floor(s.level) as Level,
       targetReps: clamp(Math.floor(s.targetReps), 0, 999),
       roundsPlanned: clamp(Math.floor(s.roundsPlanned), 0, 20),
@@ -415,42 +329,14 @@ export function sanitizeImport(raw: unknown): AppData | null {
     typeof o.settings === "object" && o.settings !== null
       ? (o.settings as Record<string, unknown>)
       : {};
-  const strengthDaysCandidate = Array.isArray(so.strengthDays)
-    ? Array.from(
-        new Set(
-          (so.strengthDays as unknown[]).filter(
-            (d): d is number =>
-              typeof d === "number" && Number.isInteger(d) && d >= 0 && d <= 6,
-          ),
-        ),
-      )
-    : [];
-  const strengthDaysRaw =
-    strengthDaysCandidate.length === 3 &&
-    isNonConsecutiveDays(strengthDaysCandidate)
-      ? strengthDaysCandidate
-      : def.strengthDays;
   const settings: Settings = {
-    restSeconds: clamp(
-      Math.floor(numOr(so.restSeconds, def.restSeconds)),
-      60,
-      150,
-    ),
     habitDaysPerWeek: [5, 6, 7].includes(numOr(so.habitDaysPerWeek, 7))
       ? (numOr(so.habitDaysPerWeek, 7) as number)
       : 7,
-    strengthDays:
-      strengthDaysRaw.length > 0
-        ? (strengthDaysRaw as number[]).sort()
-        : def.strengthDays,
     goalReps: clamp(Math.floor(numOr(so.goalReps, def.goalReps)), 1, 999),
     sound: boolOr(so.sound, true),
     haptics: boolOr(so.haptics, true),
     habitReminder: sanitizeReminder(so.habitReminder, def.habitReminder),
-    strengthReminder: sanitizeReminder(
-      so.strengthReminder,
-      def.strengthReminder,
-    ),
   };
 
   const ho =
@@ -478,19 +364,6 @@ export function sanitizeImport(raw: unknown): AppData | null {
       3,
       15,
     ),
-    roundRepsStrength: clamp(
-      Math.floor(
-        numOr(o.roundRepsStrength, computeStrengthReps(fallbackMax, level)),
-      ),
-      3,
-      40,
-    ),
-    strengthSuccessStreak: clamp(
-      Math.floor(numOr(o.strengthSuccessStreak, 0)),
-      0,
-      2,
-    ),
-    deloadRemaining: clamp(Math.floor(numOr(o.deloadRemaining, 0)), 0, 3),
     lastHabitWeekEvaluated:
       typeof o.lastHabitWeekEvaluated === "string" &&
       /^\d{4}-\d{2}-\d{2}$/.test(o.lastHabitWeekEvaluated)

@@ -12,12 +12,15 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { LaunchAnimation } from "@/components/LaunchAnimation";
+import { initNotificationHandler } from "@/lib/notifications";
 import { AppProvider } from "@/context/AppContext";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -46,6 +49,9 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const [showLaunchAnimation, setShowLaunchAnimation] = useState(
+    Platform.OS !== "web",
+  );
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -54,6 +60,10 @@ export default function RootLayout() {
     SpaceGrotesk_600SemiBold,
     SpaceGrotesk_700Bold,
   });
+
+  useEffect(() => {
+    initNotificationHandler();
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -71,6 +81,11 @@ export default function RootLayout() {
             <KeyboardProvider>
               <AppProvider>
                 <RootLayoutNav />
+                {showLaunchAnimation && (
+                  <LaunchAnimation
+                    onDone={() => setShowLaunchAnimation(false)}
+                  />
+                )}
               </AppProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

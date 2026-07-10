@@ -1,0 +1,20 @@
+{
+  "cli": {
+    "version": ">= 14.0.0"
+  },
+  "build": {
+    "production": {
+      "ios": {
+        "simulator": false,
+        "credentialsSource": "remote"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "kharchenko.mikhail@icloud.com"
+      }
+    }
+  }
+}

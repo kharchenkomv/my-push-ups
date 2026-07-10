@@ -8,14 +8,15 @@ import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
   DAY_LABELS,
+  HABIT_REST_SECONDS,
   LEVEL_INFO,
   RETEST_DAYS,
   addDays,
   dateKey,
   daysSinceMaxTest,
   formatSeconds,
+  isHabitDay,
   sessionOn,
-  trackForWeekday,
   weekStartKey,
 } from "@/lib/training";
 
@@ -29,16 +30,12 @@ export default function PlanScreen() {
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
   const today = dateKey();
   const weekStart = weekStartKey();
-  const inDeload = data.deloadRemaining > 0;
   const daysSince = daysSinceMaxTest(data);
   const retestIn =
     daysSince === null ? 0 : Math.max(0, RETEST_DAYS - daysSince);
 
-  const progressionMessage = inDeload
-    ? `Deload week: ${data.deloadRemaining} lighter ${data.deloadRemaining === 1 ? "session" : "sessions"} left (3 rounds instead of 5).`
-    : data.strengthSuccessStreak === 1
-      ? "1 strong session down — one more at effort 7 or less and your reps go up."
-      : "Complete 2 strong sessions in a row (effort ≤ 7) to add 1 rep per round.";
+  const progressionMessage =
+    "Do your habit set 5+ days a week at effort 7 or less and your reps go up by 1 each week.";
 
   return (
     <ScrollView
@@ -67,7 +64,7 @@ export default function PlanScreen() {
         {Array.from({ length: 7 }, (_, i) => {
           const key = addDays(weekStart, i);
           const wd = (i + 1) % 7;
-          const t = trackForWeekday(data.settings, wd);
+          const t = isHabitDay(data.settings, wd);
           const session = sessionOn(data.sessions, key);
           const isToday = key === today;
           const isPast = key < today;
@@ -98,11 +95,7 @@ export default function PlanScreen() {
               </Text>
               <View style={styles.dayInfo}>
                 <Text style={[styles.dayType, { color: colors.foreground }]}>
-                  {t === "strength"
-                    ? `Strength · ${inDeload ? 3 : 5} × ${data.roundRepsStrength}`
-                    : t === "habit"
-                      ? `Habit · 1 × ${data.roundRepsHabit}`
-                      : "Rest"}
+                  {t ? `Habit · 1 × ${data.roundRepsHabit}` : "Rest"}
                 </Text>
               </View>
               {status === "done" ? (
@@ -124,16 +117,12 @@ export default function PlanScreen() {
       <SectionTitle>Current prescription</SectionTitle>
       <Card>
         <PrescriptionRow
-          label="Strength session"
-          value={`${inDeload ? 3 : 5} rounds of ${data.roundRepsStrength}`}
-        />
-        <PrescriptionRow
-          label="Rest between rounds"
-          value={formatSeconds(data.settings.restSeconds)}
-        />
-        <PrescriptionRow
           label="Daily habit set"
           value={`1 round of ${data.roundRepsHabit}`}
+        />
+        <PrescriptionRow
+          label="Rest before a bonus round"
+          value={formatSeconds(HABIT_REST_SECONDS)}
         />
         <PrescriptionRow
           label="Goal"
@@ -169,8 +158,8 @@ export default function PlanScreen() {
         <View style={styles.msgRow}>
           <Feather name="shield" size={18} color={colors.success} />
           <Text style={[styles.msgText, { color: colors.foreground }]}>
-            Sessions stay submaximal — never train to failure. If effort hits 9+
-            we scale back automatically.
+            Sets stay submaximal — never train to failure. If a week feels hard
+            (effort 8+) we scale back automatically.
           </Text>
         </View>
       </Card>

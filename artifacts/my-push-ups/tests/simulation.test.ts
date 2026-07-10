@@ -2,13 +2,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   addDays,
-  applyStrengthResult,
-  canLevelUp,
   createInitialData,
   evaluateHabitWeek,
   keyToDate,
   sanitizeImport,
-  strengthCap,
   weekStartKey,
 } from "../lib/training";
 import type { AppData, SessionEntry } from "../lib/types";
@@ -24,36 +21,11 @@ function freshData(overrides: Partial<AppData> = {}): AppData {
 }
 
 let idCounter = 0;
-function strengthSession(
-  data: AppData,
-  date: string,
-  opts: { rpe: number; missRounds?: number } = { rpe: 6 },
-): SessionEntry {
-  const target = data.roundRepsStrength;
-  const reps = [target, target, target, target, target];
-  for (let i = 0; i < (opts.missRounds ?? 0); i++) {
-    reps[i] = Math.max(0, target - 1);
-  }
-  return {
-    id: `sim-${idCounter++}`,
-    date,
-    track: "strength",
-    level: data.level,
-    targetReps: target,
-    roundsPlanned: 5,
-    roundsCompleted: 5,
-    repsPerRound: reps,
-    rpe: opts.rpe,
-    painFlags: [],
-  };
-}
-
 function habitSession(data: AppData, date: string, rpe: number): SessionEntry {
   const target = data.roundRepsHabit;
   return {
     id: `sim-${idCounter++}`,
     date,
-    track: "habit",
     level: data.level,
     targetReps: target,
     roundsPlanned: 1,
@@ -65,44 +37,13 @@ function habitSession(data: AppData, date: string, rpe: number): SessionEntry {
 }
 
 function logSession(data: AppData, s: SessionEntry): AppData {
-  let next: AppData = { ...data, sessions: [...data.sessions, s] };
-  if (s.track === "strength") {
-    next = { ...next, ...applyStrengthResult(next, s) };
-  }
-  return next;
+  return { ...data, sessions: [...data.sessions, s] };
 }
 
 // Monday to anchor all simulations
 const WEEK1_MONDAY = "2026-06-01";
 
 describe("4-week simulation: steady progression", () => {
-  it("adds exactly 1 rep per 2 strong sessions and never skips", () => {
-    let data = freshData(); // roundRepsStrength starts at 3
-    const startReps = data.roundRepsStrength;
-    assert.equal(startReps, 3);
-
-    // 4 weeks, Mon/Wed/Fri strength = 12 strong sessions
-    let sessionCount = 0;
-    for (let week = 0; week < 4; week++) {
-      for (const offset of [0, 2, 4]) {
-        const date = addDays(WEEK1_MONDAY, week * 7 + offset);
-        data = logSession(data, strengthSession(data, date, { rpe: 6 }));
-        sessionCount++;
-        const expected: number = startReps + Math.floor(sessionCount / 2);
-        assert.equal(
-          data.roundRepsStrength,
-          expected,
-          `after session ${sessionCount}`,
-        );
-      }
-    }
-    assert.equal(data.roundRepsStrength, startReps + 6);
-    assert.equal(data.deloadRemaining, 0);
-    assert.equal(data.strengthSuccessStreak, 0);
-    // 9 reps is above the level-2 gate of 8, last two sessions strong
-    assert.equal(canLevelUp(data), true);
-  });
-
   it("habit reps grow weekly with consistent easy sessions, capped at 15", () => {
     let data = freshData({ lastHabitWeekEvaluated: weekStartKey(keyToDate(WEEK1_MONDAY)) });
     const repsPerWeek: number[] = [];
@@ -126,70 +67,30 @@ describe("4-week simulation: steady progression", () => {
     assert.deepEqual(repsPerWeek, [5, 6, 7, 8]);
     assert.ok(data.roundRepsHabit <= 15);
   });
-});
 
-describe("4-week simulation: failure and deload", () => {
   it("hard weeks drop reps but never below 3", () => {
-    let data = freshData(); // starts at 3
+    let data = freshData({
+      roundRepsHabit: 4,
+      lastHabitWeekEvaluated: weekStartKey(keyToDate(WEEK1_MONDAY)),
+    });
     for (let week = 0; week < 4; week++) {
-      for (const offset of [0, 2, 4]) {
-        const date = addDays(WEEK1_MONDAY, week * 7 + offset);
-        data = logSession(data, strengthSession(data, date, { rpe: 9 }));
-        assert.equal(data.roundRepsStrength, 3);
-        assert.equal(data.strengthSuccessStreak, 0);
+      // 5 hard sessions per week (avg RPE 9)
+      for (let d = 0; d < 5; d++) {
+        const date = addDays(WEEK1_MONDAY, week * 7 + d);
+        data = logSession(data, habitSession(data, date, 9));
       }
+      const nextMonday = keyToDate(addDays(WEEK1_MONDAY, (week + 1) * 7));
+      const update = evaluateHabitWeek(data, nextMonday);
+      assert.ok(update);
+      data = { ...data, ...update };
+      assert.ok(data.roundRepsHabit >= 3);
     }
-    assert.equal(data.deloadRemaining, 0);
-    assert.equal(canLevelUp(data), false);
-  });
-
-  it("climbing to the cap triggers exactly one deload over many sessions", () => {
-    // cap for level 2 with max 10 is 15
-    let data = freshData({ roundRepsStrength: 13 });
-    const cap = strengthCap(data.level, 10);
-    assert.equal(cap, 15);
-
-    let deloadTriggers = 0;
-    let prevDeload = data.deloadRemaining;
-    for (let i = 0; i < 24; i++) {
-      const date = addDays(WEEK1_MONDAY, i * 2);
-      data = logSession(data, strengthSession(data, date, { rpe: 6 }));
-      if (data.deloadRemaining === 3 && prevDeload === 0) deloadTriggers++;
-      prevDeload = data.deloadRemaining;
-      assert.ok(data.roundRepsStrength <= cap, "reps never exceed cap");
-    }
-    assert.equal(deloadTriggers, 1);
-    assert.equal(data.roundRepsStrength, cap);
-    assert.equal(data.deloadRemaining, 0);
-  });
-
-  it("mixed month: failure resets streak so progress needs 2 fresh strong sessions", () => {
-    let data = freshData({ roundRepsStrength: 6 });
-    // strong, fail, strong, strong -> net: -1 then +1 = back to 6
-    data = logSession(data, strengthSession(data, "2026-06-01", { rpe: 6 }));
-    assert.equal(data.strengthSuccessStreak, 1);
-    data = logSession(data, strengthSession(data, "2026-06-03", { rpe: 9 }));
-    assert.equal(data.roundRepsStrength, 5);
-    assert.equal(data.strengthSuccessStreak, 0);
-    data = logSession(data, strengthSession(data, "2026-06-05", { rpe: 6 }));
-    assert.equal(data.roundRepsStrength, 5);
-    data = logSession(data, strengthSession(data, "2026-06-08", { rpe: 6 }));
-    assert.equal(data.roundRepsStrength, 6);
-  });
-
-  it("missing 2 rounds counts as failure even with low RPE", () => {
-    let data = freshData({ roundRepsStrength: 6, strengthSuccessStreak: 1 });
-    data = logSession(
-      data,
-      strengthSession(data, "2026-06-01", { rpe: 5, missRounds: 2 }),
-    );
-    assert.equal(data.roundRepsStrength, 5);
-    assert.equal(data.strengthSuccessStreak, 0);
+    assert.equal(data.roundRepsHabit, 3);
   });
 });
 
 describe("week rollover", () => {
-  it("skipped weeks each evaluate once, decaying habit reps gradually", () => {
+  it("skipped weeks each evaluate once, keeping habit reps stable", () => {
     let data = freshData({
       roundRepsHabit: 8,
       lastHabitWeekEvaluated: weekStartKey(keyToDate(WEEK1_MONDAY)),
@@ -236,39 +137,91 @@ describe("import of malformed backups", () => {
       {
         id: "x1",
         date: "2026-06-02",
-        track: "strength",
         level: 2,
-        targetReps: 5,
-        roundsPlanned: 5,
-        roundsCompleted: 5,
-        repsPerRound: [5, 5, 5, 5, 5],
+        targetReps: 4,
+        roundsPlanned: 1,
+        roundsCompleted: 1,
+        repsPerRound: [4],
         rpe: 6,
         painFlags: [],
       },
     ],
     roundRepsHabit: 4,
-    roundRepsStrength: 5,
-    strengthSuccessStreak: 1,
-    deloadRemaining: 0,
     lastHabitWeekEvaluated: "2026-06-01",
     settings: {
-      restSeconds: 120,
       habitDaysPerWeek: 7,
-      strengthDays: [1, 3, 5],
       goalReps: 50,
       sound: true,
       haptics: true,
     },
   });
 
-  it("accepts a valid backup and preserves engine state", () => {
+  it("accepts a valid backup and preserves state", () => {
     const out = sanitizeImport(validBackup());
     assert.ok(out);
     assert.equal(out.level, 2);
-    assert.equal(out.roundRepsStrength, 5);
-    assert.equal(out.strengthSuccessStreak, 1);
+    assert.equal(out.roundRepsHabit, 4);
     assert.equal(out.sessions.length, 1);
     assert.equal(out.maxTests.length, 1);
+  });
+
+  it("accepts a legacy strength-era backup, keeping sessions as history", () => {
+    // Shape written by app versions that still had the strength track.
+    const legacy = {
+      level: 2,
+      maxTests: [{ date: "2026-06-01", level: 2, reps: 10 }],
+      sessions: [
+        {
+          id: "st1",
+          date: "2026-06-02",
+          track: "strength",
+          level: 2,
+          targetReps: 5,
+          roundsPlanned: 5,
+          roundsCompleted: 5,
+          repsPerRound: [5, 5, 5, 5, 5],
+          rpe: 6,
+          painFlags: [],
+        },
+        {
+          id: "h1",
+          date: "2026-06-03",
+          track: "habit",
+          level: 2,
+          targetReps: 4,
+          roundsPlanned: 1,
+          roundsCompleted: 1,
+          repsPerRound: [4],
+          rpe: 5,
+          painFlags: [],
+        },
+      ],
+      roundRepsHabit: 4,
+      roundRepsStrength: 5,
+      strengthSuccessStreak: 1,
+      deloadRemaining: 0,
+      lastHabitWeekEvaluated: "2026-06-01",
+      settings: {
+        restSeconds: 120,
+        habitDaysPerWeek: 7,
+        strengthDays: [1, 3, 5],
+        goalReps: 50,
+        sound: true,
+        haptics: true,
+        strengthReminder: { enabled: true, hour: 18, minute: 0, days: [1, 3, 5] },
+      },
+    };
+    const out = sanitizeImport(legacy);
+    assert.ok(out);
+    // both sessions survive as plain history
+    assert.equal(out.sessions.length, 2);
+    assert.equal(out.roundRepsHabit, 4);
+    // strength fields are dropped from the migrated shape
+    assert.equal("roundRepsStrength" in out, false);
+    assert.equal("track" in out.sessions[0]!, false);
+    assert.equal("strengthDays" in out.settings, false);
+    assert.equal("restSeconds" in out.settings, false);
+    assert.equal("strengthReminder" in out.settings, false);
   });
 
   it("rejects non-objects and totally empty payloads", () => {
@@ -319,15 +272,16 @@ describe("import of malformed backups", () => {
     const out = sanitizeImport({
       ...validBackup(),
       roundRepsHabit: 999,
-      roundRepsStrength: -10,
-      strengthSuccessStreak: 50,
-      deloadRemaining: 99,
     });
     assert.ok(out);
     assert.equal(out.roundRepsHabit, 15);
-    assert.equal(out.roundRepsStrength, 3);
-    assert.equal(out.strengthSuccessStreak, 2);
-    assert.equal(out.deloadRemaining, 3);
+
+    const low = sanitizeImport({
+      ...validBackup(),
+      roundRepsHabit: -10,
+    });
+    assert.ok(low);
+    assert.equal(low.roundRepsHabit, 3);
   });
 
   it("clamps rpe, reps, and pain flags inside sessions", () => {
@@ -352,38 +306,34 @@ describe("import of malformed backups", () => {
     const out = sanitizeImport({
       ...validBackup(),
       settings: {
-        restSeconds: 9999,
         habitDaysPerWeek: 2,
-        strengthDays: [1, 2, 3], // consecutive -> invalid
         goalReps: -5,
         sound: "yes",
       },
     });
     assert.ok(out);
-    assert.equal(out.settings.restSeconds, 150);
     assert.equal(out.settings.habitDaysPerWeek, 7);
-    assert.deepEqual(out.settings.strengthDays, [1, 3, 5]);
     assert.equal(out.settings.goalReps, 1);
     assert.equal(out.settings.sound, true);
   });
 
-  it("derives missing engine numbers from the latest max test", () => {
+  it("derives missing habit reps from the latest max test", () => {
     const backup = validBackup() as Record<string, unknown>;
     delete backup.roundRepsHabit;
-    delete backup.roundRepsStrength;
     const out = sanitizeImport(backup);
     assert.ok(out);
     assert.equal(out.roundRepsHabit, 4); // 40% of 10
-    assert.equal(out.roundRepsStrength, 3);
   });
 
   it("imported data keeps working in the engine afterwards", () => {
     const out = sanitizeImport(validBackup());
     assert.ok(out);
-    let data = out;
-    data = logSession(data, strengthSession(data, "2026-06-05", { rpe: 6 }));
-    // streak was 1 from the backup, so a strong session progresses
-    assert.equal(data.roundRepsStrength, 6);
-    assert.equal(data.strengthSuccessStreak, 0);
+    let data: AppData = { ...out, lastHabitWeekEvaluated: "2026-06-01" };
+    for (let d = 0; d < 5; d++) {
+      data = logSession(data, habitSession(data, addDays("2026-06-01", d), 5));
+    }
+    const update = evaluateHabitWeek(data, keyToDate("2026-06-08"));
+    assert.ok(update);
+    assert.equal(update.roundRepsHabit, 5); // 4 + 1 after an easy week
   });
 });

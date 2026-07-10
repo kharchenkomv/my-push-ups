@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Modal,
@@ -19,13 +19,7 @@ import { Card, Chip, PrimaryButton, SectionTitle } from "@/components/UI";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { rescheduleReminders } from "@/lib/notifications";
-import {
-  DAY_LABELS,
-  LEVEL_INFO,
-  clamp,
-  formatSeconds,
-  isNonConsecutiveDays,
-} from "@/lib/training";
+import { DAY_LABELS, LEVEL_INFO } from "@/lib/training";
 import type { Level, ReminderConfig, Settings } from "@/lib/types";
 
 const GOALS = [20, 30, 50, 100];
@@ -45,16 +39,6 @@ export default function SettingsScreen() {
 
   const [importVisible, setImportVisible] = useState<boolean>(false);
   const [importText, setImportText] = useState<string>("");
-  const [dayDraft, setDayDraft] = useState<number[]>(
-    data?.settings.strengthDays ?? [1, 3, 5],
-  );
-
-  const storedDaysKey = data ? data.settings.strengthDays.join(",") : "";
-  useEffect(() => {
-    if (storedDaysKey) {
-      setDayDraft(storedDaysKey.split(",").map((d) => Number(d)));
-    }
-  }, [storedDaysKey]);
 
   if (!data) return null;
 
@@ -63,25 +47,8 @@ export default function SettingsScreen() {
 
   const apply = async (patch: Partial<Settings>) => {
     const next = await updateSettings(patch);
-    if (
-      next &&
-      ("habitReminder" in patch ||
-        "strengthReminder" in patch ||
-        "strengthDays" in patch ||
-        "habitDaysPerWeek" in patch)
-    ) {
+    if (next && ("habitReminder" in patch || "habitDaysPerWeek" in patch)) {
       rescheduleReminders(next);
-    }
-  };
-
-  const toggleStrengthDay = (wd: number) => {
-    const next = dayDraft.includes(wd)
-      ? dayDraft.filter((d) => d !== wd)
-      : [...dayDraft, wd].sort((a, b) => a - b);
-    if (next.length > 3) return;
-    setDayDraft(next);
-    if (next.length === 3 && isNonConsecutiveDays(next)) {
-      apply({ strengthDays: next });
     }
   };
 
@@ -142,25 +109,6 @@ export default function SettingsScreen() {
       <SectionTitle>Training</SectionTitle>
       <Card>
         <Text style={[styles.rowLabel, { color: colors.foreground }]}>
-          Rest between strength rounds
-        </Text>
-        <Text style={[styles.stepValue, { color: colors.foreground, marginTop: 16 }]}>
-          {formatSeconds(s.restSeconds)}
-        </Text>
-        <SliderControl
-          value={s.restSeconds}
-          min={60}
-          max={150}
-          step={5}
-          onChange={(restSeconds) => apply({ restSeconds })}
-        />
-        <Text style={[styles.rowHint, { color: colors.mutedForeground }]}>
-          60s – 2:30. Default is 2:00.
-        </Text>
-      </Card>
-
-      <Card style={styles.cardGap}>
-        <Text style={[styles.rowLabel, { color: colors.foreground }]}>
           Habit days per week
         </Text>
         <View style={styles.chipRow}>
@@ -176,38 +124,6 @@ export default function SettingsScreen() {
         <Text style={[styles.rowHint, { color: colors.mutedForeground }]}>
           5 = weekdays, 6 = all but Sunday, 7 = every day.
         </Text>
-      </Card>
-
-      <Card style={styles.cardGap}>
-        <Text style={[styles.rowLabel, { color: colors.foreground }]}>
-          Strength days (pick 3 non-consecutive)
-        </Text>
-        <View style={styles.chipRow}>
-          {[1, 2, 3, 4, 5, 6, 0].map((wd) => (
-            <Chip
-              key={wd}
-              label={DAY_LABELS[wd] ?? ""}
-              active={dayDraft.includes(wd)}
-              onPress={() => toggleStrengthDay(wd)}
-            />
-          ))}
-        </View>
-        {dayDraft.length !== 3 ? (
-          <Text style={[styles.rowHint, { color: colors.primary }]}>
-            Pick {3 - dayDraft.length} more day
-            {3 - dayDraft.length === 1 ? "" : "s"} — changes apply once 3
-            non-consecutive days are selected.
-          </Text>
-        ) : !isNonConsecutiveDays(dayDraft) ? (
-          <Text style={[styles.rowHint, { color: colors.primary }]}>
-            Days must be non-consecutive so muscles can recover. Adjust your
-            selection.
-          </Text>
-        ) : (
-          <Text style={[styles.rowHint, { color: colors.mutedForeground }]}>
-            Rest at least one day between strength sessions.
-          </Text>
-        )}
       </Card>
 
       <Card style={styles.cardGap}>
@@ -247,11 +163,6 @@ export default function SettingsScreen() {
         title="Habit reminder"
         config={s.habitReminder}
         onChange={(habitReminder) => apply({ habitReminder })}
-      />
-      <ReminderCard
-        title="Strength reminder"
-        config={s.strengthReminder}
-        onChange={(strengthReminder) => apply({ strengthReminder })}
       />
       {Platform.OS === "web" ? (
         <Text style={[styles.rowHint, { color: colors.mutedForeground, marginTop: 8 }]}>
@@ -514,65 +425,6 @@ function ReminderCard({
   );
 }
 
-function SliderControl({
-  value,
-  min,
-  max,
-  step,
-  onChange,
-}: {
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (v: number) => void;
-}) {
-  const colors = useColors();
-  const [width, setWidth] = useState<number>(0);
-
-  const setFromX = (x: number) => {
-    if (width <= 0) return;
-    const ratio = clamp(x / width, 0, 1);
-    const snapped = clamp(
-      Math.round((min + ratio * (max - min)) / step) * step,
-      min,
-      max,
-    );
-    if (snapped !== value) onChange(snapped);
-  };
-
-  const ratio = (value - min) / (max - min);
-
-  return (
-    <View
-      style={styles.sliderHit}
-      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
-      onStartShouldSetResponder={() => true}
-      onMoveShouldSetResponder={() => true}
-      onResponderGrant={(e) => setFromX(e.nativeEvent.locationX)}
-      onResponderMove={(e) => setFromX(e.nativeEvent.locationX)}
-    >
-      <View style={[styles.sliderTrack, { backgroundColor: colors.muted }]}>
-        <View
-          style={[
-            styles.sliderFill,
-            { backgroundColor: colors.primary, width: `${ratio * 100}%` },
-          ]}
-        />
-      </View>
-      <View
-        style={[
-          styles.sliderThumb,
-          {
-            backgroundColor: colors.primary,
-            left: width > 0 ? ratio * (width - 26) : 0,
-          },
-        ]}
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
   title: {
@@ -681,29 +533,4 @@ const styles = StyleSheet.create({
   },
   modalBtns: { flexDirection: "row", gap: 12, marginTop: 24 },
   modalBtn: { flex: 1 },
-  sliderHit: {
-    height: 44,
-    justifyContent: "center",
-    marginTop: 8,
-  },
-  sliderTrack: {
-    height: 8,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  sliderFill: {
-    height: 8,
-    borderRadius: 4,
-  },
-  sliderThumb: {
-    position: "absolute",
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
 });

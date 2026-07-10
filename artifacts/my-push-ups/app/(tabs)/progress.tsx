@@ -37,11 +37,7 @@ export default function ProgressScreen() {
 
   const today = dateKey();
   const start = addDays(today, -27);
-  const sessionMap = new Map<string, "habit" | "strength">();
-  for (const s of data.sessions) {
-    const existing = sessionMap.get(s.date);
-    if (existing !== "strength") sessionMap.set(s.date, s.track);
-  }
+  const sessionDays = new Set(data.sessions.map((s) => s.date));
 
   const recentTests = [...data.maxTests].reverse().slice(0, 6);
 
@@ -111,20 +107,14 @@ export default function ProgressScreen() {
         <View style={styles.heatGrid}>
           {Array.from({ length: 28 }, (_, i) => {
             const key = addDays(start, i);
-            const t = sessionMap.get(key);
+            const done = sessionDays.has(key);
             return (
               <View
                 key={key}
                 style={[
                   styles.heatCell,
                   {
-                    backgroundColor:
-                      t === "strength"
-                        ? colors.strength
-                        : t === "habit"
-                          ? colors.habit
-                          : colors.muted,
-                    opacity: t === "habit" ? 0.6 : 1,
+                    backgroundColor: done ? colors.habit : colors.muted,
                   },
                 ]}
               />
@@ -134,21 +124,10 @@ export default function ProgressScreen() {
         <View style={styles.legendRow}>
           <View style={styles.legendItem}>
             <View
-              style={[styles.legendDot, { backgroundColor: colors.strength }]}
+              style={[styles.legendDot, { backgroundColor: colors.habit }]}
             />
             <Text style={[styles.legendText, { color: colors.mutedForeground }]}>
-              Strength
-            </Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View
-              style={[
-                styles.legendDot,
-                { backgroundColor: colors.habit, opacity: 0.6 },
-              ]}
-            />
-            <Text style={[styles.legendText, { color: colors.mutedForeground }]}>
-              Habit
+              Habit set done
             </Text>
           </View>
         </View>

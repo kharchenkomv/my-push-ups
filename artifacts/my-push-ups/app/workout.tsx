@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import * as Haptics from "expo-haptics";
+import { useKeepAwake } from "expo-keep-awake";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -40,9 +41,10 @@ const PAIN_OPTIONS: { key: PainFlag; label: string }[] = [
 ];
 
 export default function WorkoutScreen() {
+  useKeepAwake();
   const { track } = useLocalSearchParams<{ track?: string }>();
   if (track === "maxtest") return <MaxTestFlow />;
-  return <SessionFlow isStrength={track === "strength"} />;
+  return <SessionFlow />;
 }
 
 const beepSource = require("@/assets/sounds/beep.wav");
@@ -96,7 +98,7 @@ function useHaptic() {
   };
 }
 
-function SessionFlow({ isStrength }: { isStrength: boolean }) {
+function SessionFlow() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -104,17 +106,9 @@ function SessionFlow({ isStrength }: { isStrength: boolean }) {
   const haptic = useHaptic();
   const sounds = useRestSounds();
 
-  const target = isStrength
-    ? (data?.roundRepsStrength ?? 5)
-    : (data?.roundRepsHabit ?? 3);
-  const initialRounds = isStrength
-    ? (data?.deloadRemaining ?? 0) > 0
-      ? 3
-      : 5
-    : 1;
-  const restDuration = isStrength
-    ? (data?.settings.restSeconds ?? 120)
-    : HABIT_REST_SECONDS;
+  const target = data?.roundRepsHabit ?? 3;
+  const initialRounds = 1;
+  const restDuration = HABIT_REST_SECONDS;
 
   const [phase, setPhase] = useState<Phase>("work");
   const [round, setRound] = useState<number>(1);
@@ -125,7 +119,17 @@ function SessionFlow({ isStrength }: { isStrength: boolean }) {
   const [pains, setPains] = useState<PainFlag[]>([]);
   const [saving, setSaving] = useState<boolean>(false);
   const [adjusting, setAdjusting] = useState<boolean>(false);
-  const canAddRound = useRef<boolean>(!isStrength);
+  const canAddRound = useRef<boolean>(true);
+  // Wall-clock deadline for the current rest. JS timers freeze while the app
+  // is backgrounded or the screen is locked, so the countdown must be derived
+  // from Date.now(), not from accumulated ticks.
+  const restEndsAt = useRef<number>(0);
+
+  const startRest = () => {
+    restEndsAt.current = Date.now() + restDuration * 1000;
+    setRestLeft(restDuration);
+    setPhase("rest");
+  };
 
   const adjustRep = (index: number, delta: number) => {
     haptic.light();
@@ -142,8 +146,12 @@ function SessionFlow({ isStrength }: { isStrength: boolean }) {
   useEffect(() => {
     if (phase !== "rest") return;
     const id = setInterval(() => {
-      setRestLeft((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
+      const remaining = Math.max(
+        0,
+        Math.ceil((restEndsAt.current - Date.now()) / 1000),
+      );
+      setRestLeft(remaining);
+    }, 250);
     return () => clearInterval(id);
   }, [phase]);
 
@@ -164,15 +172,12 @@ function SessionFlow({ isStrength }: { isStrength: boolean }) {
 
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
   const bottomPad = Platform.OS === "web" ? 46 : insets.bottom + 16;
-  const title = isStrength ? "Strength session" : "Habit session";
-
   const completeRound = () => {
     haptic.light();
     const nextReps = [...reps, target];
     setReps(nextReps);
     if (nextReps.length < totalRounds) {
-      setRestLeft(restDuration);
-      setPhase("rest");
+      startRest();
     } else {
       setPhase("summary");
     }
@@ -181,11 +186,11 @@ function SessionFlow({ isStrength }: { isStrength: boolean }) {
   const addHabitRound = () => {
     canAddRound.current = false;
     setTotalRounds(2);
-    setRestLeft(restDuration);
-    setPhase("rest");
+    startRest();
   };
 
   const skipRest = () => {
+    restEndsAt.current = Date.now();
     setRestLeft(0);
   };
 
@@ -212,7 +217,6 @@ function SessionFlow({ isStrength }: { isStrength: boolean }) {
     setSaving(true);
     await completeSession({
       date: dateKey(),
-      track: isStrength ? "strength" : "habit",
       level: data.level,
       targetReps: target,
       roundsPlanned: totalRounds,
@@ -237,7 +241,7 @@ function SessionFlow({ isStrength }: { isStrength: boolean }) {
             <Feather name="x" size={24} color="#FFFFFF" />
           </Pressable>
           <Text style={styles.navTitle}>
-            {phase === "rest" ? "Resting" : `${isStrength ? "Strength" : "Habit"} · Round ${round} of ${totalRounds}`}
+            {phase === "rest" ? "Resting" : `Habit · Round ${round} of ${totalRounds}`}
           </Text>
           <View style={{ width: 28 }} />
         </View>
@@ -272,7 +276,7 @@ function SessionFlow({ isStrength }: { isStrength: boolean }) {
                 sublabel="reps"
                 onPress={completeRound}
                 accessibilityLabel={`Complete round, ${target} push-ups`}
-                color={isStrength ? colors.strength : colors.habit}
+                color={colors.habit}
               />
             </View>
             
@@ -390,7 +394,7 @@ function SessionFlow({ isStrength }: { isStrength: boolean }) {
                 <Feather name="check" size={32} color={colors.success} />
               </View>
               <Text style={[styles.doneTitle, { color: colors.foreground }]}>
-                {isStrength ? "Strength session complete" : "Habit round complete"}
+                Habit round complete
               </Text>
               <Text style={[styles.doneSub, { color: colors.mutedForeground }]}>
                 {reps.length} {reps.length === 1 ? "round" : "rounds"} ·{" "}
