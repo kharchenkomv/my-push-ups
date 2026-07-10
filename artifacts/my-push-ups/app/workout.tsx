@@ -1,7 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import * as Haptics from "expo-haptics";
-import { useKeepAwake } from "expo-keep-awake";
+import {
+  activateKeepAwakeAsync,
+  deactivateKeepAwake,
+} from "expo-keep-awake";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -41,7 +44,15 @@ const PAIN_OPTIONS: { key: PainFlag; label: string }[] = [
 ];
 
 export default function WorkoutScreen() {
-  useKeepAwake();
+  // Keep the screen on during a workout. Native only: the web Wake Lock API
+  // throws a permission error in embedded/insecure contexts.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    activateKeepAwakeAsync().catch(() => undefined);
+    return () => {
+      deactivateKeepAwake().catch(() => undefined);
+    };
+  }, []);
   const { track } = useLocalSearchParams<{ track?: string }>();
   if (track === "maxtest") return <MaxTestFlow />;
   return <SessionFlow />;
@@ -649,12 +660,12 @@ function MaxTestFlow() {
                   haptic.light();
                   setReps((prev) => prev + 1);
                 }}
+                variant="ghost"
                 testID="btn-maxtest-plus"
               />
               <PrimaryButton
                 label="That's my limit"
                 onPress={() => setPhase("input")}
-                variant="ghost"
               />
             </View>
           </View>

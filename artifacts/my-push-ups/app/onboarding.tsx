@@ -67,11 +67,17 @@ export default function OnboardingScreen() {
               <Circle cx="48" cy="48" r="40" stroke="rgba(255,255,255,.35)" strokeWidth="7"/>
               <Path d="M48 8 A40 40 0 0 1 85 60" stroke="#FF7A3D" strokeWidth="7" strokeLinecap="round"/>
             </Svg>
-            <Svg style={styles.welcomePushup} width="46" height="46" viewBox="0 0 24 24" fill="none">
-              <Circle cx="17.2" cy="6.4" r="2.1" fill="white"/>
-              <Path d="M4 15.2 L13.5 11.6 L15.6 15.2 M13.5 11.6 L15.9 6.9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <Path d="M6.5 15.2 L5.5 19" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-              <Path d="M12.5 15.2 L11.8 19" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+            <Svg style={styles.welcomePushup} width="52" height="36" viewBox="0 0 64 40" fill="none">
+              <Circle cx="54" cy="11" r="6" fill="white" />
+              <Path
+                d="M7 31 L44 17"
+                stroke="white"
+                strokeWidth="7"
+                strokeLinecap="round"
+              />
+              <Path d="M8 31 L4 36" stroke="white" strokeWidth="4" strokeLinecap="round" />
+              <Path d="M42 18 L45 34" stroke="white" strokeWidth="4.5" strokeLinecap="round" />
+              <Path d="M47 17 L50 33" stroke="white" strokeWidth="4.5" strokeLinecap="round" />
             </Svg>
           </View>
           <Text style={styles.heroTitle}>My Push Ups</Text>
@@ -325,7 +331,7 @@ export default function OnboardingScreen() {
         {step === "maxtest" && (
           <View style={styles.centerCol}>
             <Text style={[styles.body, { color: colors.mutedForeground, textAlign: "center", maxWidth: 300 }]}>
-              One set of {LEVEL_INFO[level]?.name} push-ups. Stop the moment your form breaks — never push to absolute failure.
+              One set of {LEVEL_INFO[level]?.name.toLowerCase()}. Stop the moment your form breaks — never push to absolute failure.
             </Text>
             <View style={styles.tapCounter}>
               <Text style={[styles.tapCounterValue, { color: colors.primary }]}>{maxReps}</Text>
@@ -335,12 +341,12 @@ export default function OnboardingScreen() {
               <PrimaryButton
                 label="+1 rep"
                 onPress={() => setMaxReps(r => r + 1)}
+                variant="ghost"
                 testID="btn-maxtest-plus"
               />
               <PrimaryButton
                 label="That's my limit"
                 onPress={() => setStep("preview")}
-                variant="ghost"
                 testID="btn-maxtest-confirm"
               />
             </View>
