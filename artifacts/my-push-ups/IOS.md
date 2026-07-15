@@ -6,7 +6,7 @@ Reviewed 2026-07-10 against Expo SDK 54 / React Native 0.81.5 (new architecture 
 
 Offline, no-login push-up trainer. Single Expo app (`artifacts/my-push-ups`) in a pnpm
 monorepo; no backend, no env vars, no secrets. All state lives in AsyncStorage under the
-key `mpu:data:v1`. The training engine is pure functions in `lib/training.ts` (41 tests).
+key `mpu:data:v1`. The training engine is pure functions in `lib/training.ts` (46 tests).
 
 ## iOS-specific implementation (already in place)
 
@@ -35,12 +35,13 @@ key `mpu:data:v1`. The training engine is pure functions in `lib/training.ts` (4
   only (`supportsTablet: false`).
 - **App icon**: `assets/images/icon.png` is 2048×2048 with no alpha channel — meets
   App Store requirements.
-- **Launch animation**: on cold start (native only, skipped on web),
-  `components/LaunchAnimation.tsx` plays `assets/videos/launch.mp4` (5.8 s, muted,
-  `expo-video`) as a full-screen overlay above the app. It fades out at ~5.1 s —
-  before the video's own fade-to-black tail — and a tap anywhere skips it. The native
-  splash background `#1E3A8A` matches the video's opening frame, so
-  splash → video → app is seamless.
+- **Launch animation**: plays on every open — first mount plus each foreground resume
+  (`AppState` → `active` in `app/_layout.tsx`), all platforms. `components/LaunchAnimation.tsx`
+  plays `assets/videos/launch.mp4` (5.8 s, muted, `expo-video`) as a full-screen overlay.
+  It fades out at ~5.1 s (before the video's fade-to-black tail); a tap skips it; and a
+  6.5 s safety timeout dismisses it even if a browser blocks muted autoplay, so the app is
+  never trapped behind the overlay. The native splash background `#1E3A8A` matches the
+  video's opening frame, so splash → video → app is seamless.
 
 ## How to run on iOS
 

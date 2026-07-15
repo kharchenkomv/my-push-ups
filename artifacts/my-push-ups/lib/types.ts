@@ -17,6 +17,7 @@ export interface ReminderConfig {
 
 export interface Settings {
   habitDaysPerWeek: number;
+  restSeconds: number;
   goalReps: number;
   sound: boolean;
   haptics: boolean;
@@ -48,5 +49,8 @@ export interface AppData {
   settings: Settings;
   maxTests: MaxTestEntry[];
   sessions: SessionEntry[];
+  // Current Standard-session daily target (evolves via weekly progression).
+  dailyTarget: number;
+  lastWeekEvaluated: string;
   needsMaxTest: boolean;
 }

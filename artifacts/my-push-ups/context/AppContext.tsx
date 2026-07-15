@@ -12,6 +12,8 @@ import { AppState } from "react-native";
 
 import {
   createInitialData,
+  dailyTargetFor,
+  evaluateWeek,
   latestMaxTest,
   dateKey,
   newId,
@@ -76,9 +78,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // reminder configs) to the current shape.
           const parsed = sanitizeImport(JSON.parse(raw));
           if (parsed) {
-            setData(parsed);
-            // Persist the migration if the on-disk shape changed.
-            if (JSON.stringify(parsed) !== raw) enqueueWrite(parsed);
+            // Run any pending weekly progression, then persist if the on-disk
+            // shape changed (migration and/or the weekly adjustment).
+            const weekly = evaluateWeek(parsed);
+            const next = weekly ? { ...parsed, ...weekly } : parsed;
+            setData(next);
+            if (JSON.stringify(next) !== raw) enqueueWrite(next);
           }
         }
       } catch {
@@ -92,8 +97,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [enqueueWrite]);
 
-  // Bump a tick when the app returns to foreground so date-derived screens
-  // (today's rep target ramps with the calendar) recompute after midnight.
+  // Re-check the week boundary when the app returns to foreground so a
+  // rollover applies the weekly progression and screens refresh.
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") setWakeTick((t) => t + 1);
@@ -120,6 +125,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [enqueueWrite],
   );
 
+  // Apply the weekly progression whenever the week rolls over while running.
+  useEffect(() => {
+    if (!data) return;
+    if (evaluateWeek(data)) {
+      mutate((prev) => {
+        const w = evaluateWeek(prev);
+        return w ? { ...prev, ...w } : prev;
+      });
+    }
+  }, [data, wakeTick, mutate]);
+
   const completeOnboarding = useCallback(
     async (params: {
       level: Level;
@@ -142,6 +158,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ...prev.maxTests,
           { date: dateKey(), level: prev.level, reps },
         ],
+        // Re-test recalculates the daily target from the fresh max (spec §2.2).
+        dailyTarget: dailyTargetFor(reps, prev.level),
         needsMaxTest: false,
       }));
     },
@@ -176,7 +194,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (level: Level) => {
       await mutate((prev) => {
         const test = latestMaxTest({ ...prev, level }, level);
-        return { ...prev, level, needsMaxTest: !test };
+        return {
+          ...prev,
+          level,
+          needsMaxTest: !test,
+          ...(test
+            ? { dailyTarget: dailyTargetFor(test.reps, level) }
+            : {}),
+        };
       });
     },
     [mutate],

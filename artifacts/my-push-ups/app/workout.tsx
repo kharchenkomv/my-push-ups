@@ -25,13 +25,13 @@ import { Stepper } from "@/app/onboarding";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
-  SESSION_REST_SECONDS,
   SESSION_ROUNDS,
+  SESSION_TYPE_LABEL,
   LEVEL_INFO,
   dateKey,
   formatSeconds,
+  planForDate,
   recentPainFlags,
-  sessionRoundReps,
 } from "@/lib/training";
 import type { PainFlag } from "@/lib/types";
 
@@ -119,9 +119,10 @@ function SessionFlow() {
   const haptic = useHaptic();
   const sounds = useRestSounds();
 
-  const target = data ? sessionRoundReps(data) : 3;
+  const plan = data ? planForDate(data) : null;
+  const rounds = plan?.rounds ?? [];
   const totalRounds = SESSION_ROUNDS;
-  const restDuration = SESSION_REST_SECONDS;
+  const restDuration = data?.settings.restSeconds ?? 60;
 
   const [phase, setPhase] = useState<Phase>("work");
   const [round, setRound] = useState<number>(1);
@@ -183,9 +184,11 @@ function SessionFlow() {
 
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
   const bottomPad = Platform.OS === "web" ? 46 : insets.bottom + 16;
+  const currentTarget = rounds[reps.length] ?? rounds[rounds.length - 1] ?? 0;
+
   const completeRound = () => {
     haptic.light();
-    const nextReps = [...reps, target];
+    const nextReps = [...reps, currentTarget];
     setReps(nextReps);
     if (nextReps.length < totalRounds) {
       startRest();
@@ -223,7 +226,7 @@ function SessionFlow() {
     await completeSession({
       date: dateKey(),
       level: data.level,
-      targetReps: target,
+      targetReps: plan?.target ?? reps[0] ?? 0,
       roundsPlanned: totalRounds,
       roundsCompleted: reps.length,
       repsPerRound: reps,
@@ -271,16 +274,17 @@ function SessionFlow() {
               </View>
             ) : null}
             <Text style={styles.sessionLevelTag}>
-              Level {data.level} · {LEVEL_INFO[data.level]?.name}
+              {plan ? `${SESSION_TYPE_LABEL[plan.type]} · ` : ""}
+              {LEVEL_INFO[data.level]?.name}
             </Text>
-            
+
             <View style={{ marginVertical: 40 }}>
               <BigCircle
                 mode="work"
-                value={`${target}`}
+                value={`${currentTarget}`}
                 sublabel="reps"
                 onPress={completeRound}
-                accessibilityLabel={`Complete round, ${target} push-ups`}
+                accessibilityLabel={`Complete round, ${currentTarget} push-ups`}
                 color={colors.habit}
               />
             </View>
@@ -322,7 +326,7 @@ function SessionFlow() {
             </View>
             
             <Text style={styles.sessionHint}>
-              Next: Round {round + 1} of {totalRounds}
+              Next: Round {round + 1} of {totalRounds} · {rounds[round] ?? 0} reps
             </Text>
 
             {reps.length > 0 ? (
@@ -850,17 +854,18 @@ const styles = StyleSheet.create({
   },
   rpeScale: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 6,
+    width: "100%",
+    gap: 5,
   },
   rpeDot: {
-    width: 34, height: 34,
-    borderRadius: 17,
-    alignItems: "center", justifyContent: "center",
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
   },
   rpeDotText: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "SpaceGrotesk_700Bold",
   },
   rpeCaptionRow: {

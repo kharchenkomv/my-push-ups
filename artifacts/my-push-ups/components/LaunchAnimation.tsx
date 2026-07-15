@@ -1,6 +1,6 @@
 import { useEventListener } from "expo";
 import { VideoView, useVideoPlayer } from "expo-video";
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { Animated, Pressable, StyleSheet } from "react-native";
 
 const launchVideo = require("@/assets/videos/launch.mp4");
@@ -9,6 +9,9 @@ const launchVideo = require("@/assets/videos/launch.mp4");
 // so the app is revealed from the title frame, not from black.
 const FADE_START_SECONDS = 5.1;
 const FADE_DURATION_MS = 350;
+// Hard ceiling: if playback never advances (e.g. a browser blocks muted
+// autoplay), dismiss anyway so the app is never trapped behind the overlay.
+const SAFETY_TIMEOUT_MS = 6500;
 
 export function LaunchAnimation({ onDone }: { onDone: () => void }) {
   const opacity = useRef(new Animated.Value(1)).current;
@@ -31,11 +34,21 @@ export function LaunchAnimation({ onDone }: { onDone: () => void }) {
     }).start(() => onDone());
   };
 
+  // Retry play once the element is ready (helps web, where play() in the
+  // setup callback can race the <video> mount), and guarantee an exit.
+  useEffect(() => {
+    player.play();
+    const t = setTimeout(dismiss, SAFETY_TIMEOUT_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEventListener(player, "timeUpdate", ({ currentTime }) => {
     if (currentTime >= FADE_START_SECONDS) dismiss();
   });
   useEventListener(player, "playToEnd", dismiss);
   useEventListener(player, "statusChange", ({ status }) => {
+    if (status === "readyToPlay") player.play();
     if (status === "error") dismiss();
   });
 

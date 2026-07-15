@@ -9,20 +9,17 @@ import { useColors } from "@/hooks/useColors";
 import {
   DAY_LABELS,
   LEVEL_INFO,
-  RAMP_STEP_DAYS,
-  REP_CAP,
   RETEST_DAYS,
-  SESSION_REST_SECONDS,
   SESSION_ROUNDS,
+  SESSION_TYPE_LABEL,
   addDays,
-  baseRoundReps,
-  currentMaxReps,
   dateKey,
   daysSinceMaxTest,
   formatSeconds,
   isHabitDay,
+  planForDate,
+  planForWeekday,
   sessionOn,
-  sessionRoundReps,
   weekStartKey,
 } from "@/lib/training";
 
@@ -40,10 +37,9 @@ export default function PlanScreen() {
   const retestIn =
     daysSince === null ? 0 : Math.max(0, RETEST_DAYS - daysSince);
 
-  const todayReps = sessionRoundReps(data);
-  const base = baseRoundReps(currentMaxReps(data));
-  const cap = Math.max(3, Math.min(REP_CAP, currentMaxReps(data)));
-  const progressionMessage = `Each round starts at ${base} reps and climbs by 1 every ${RAMP_STEP_DAYS} days, up to ${cap}. A max re-test then resets the ramp from a higher base.`;
+  const todayPlan = planForDate(data, today);
+  const progressionMessage =
+    "Train 6+ days next week with all rounds done and effort 7 or lower, and each round's target goes up by 1. Hard weeks (effort 8+) ease it back.";
 
   return (
     <ScrollView
@@ -104,7 +100,7 @@ export default function PlanScreen() {
               <View style={styles.dayInfo}>
                 <Text style={[styles.dayType, { color: colors.foreground }]}>
                   {t
-                    ? `${SESSION_ROUNDS} × ${sessionRoundReps(data, key)}`
+                    ? `${SESSION_TYPE_LABEL[planForWeekday(data.dailyTarget, wd).type]} · ${planForWeekday(data.dailyTarget, wd).total} reps`
                     : "Rest"}
                 </Text>
               </View>
@@ -128,11 +124,15 @@ export default function PlanScreen() {
       <Card>
         <PrescriptionRow
           label="Session"
-          value={`${SESSION_ROUNDS} rounds of ${todayReps}`}
+          value={`${SESSION_TYPE_LABEL[todayPlan.type]} · ${todayPlan.total} reps`}
+        />
+        <PrescriptionRow
+          label={`${SESSION_ROUNDS} rounds`}
+          value={todayPlan.rounds.join(" · ")}
         />
         <PrescriptionRow
           label="Rest between rounds"
-          value={formatSeconds(SESSION_REST_SECONDS)}
+          value={formatSeconds(data.settings.restSeconds)}
         />
         <PrescriptionRow
           label="Goal"

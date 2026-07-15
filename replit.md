@@ -31,8 +31,9 @@ An offline, no-login push-up trainer mobile app: a tiny daily habit set, auto-pr
 
 - All training logic is pure functions in `lib/training.ts` so it's testable and UI-independent
 - One session per calendar day; habit days set by `habitDaysPerWeek` (5 = weekdays, 6 = all but Sunday, 7 = daily)
-- One track only (habit). A daily session is 5 rounds (`SESSION_ROUNDS`) with 60 s rest between rounds. Per-round reps ramp deterministically: base = floor(max×0.4) clamped 3–15, then +1 every 3 days (`RAMP_STEP_DAYS`) since the last max test, capped at 15 and at the tested max. A max re-test (prompted after 21 days) resets the ramp from a new base. No weekly RPE adjustment, no strength track, no auto level-up (level is changed only via Settings override).
-- The whole plan is derived from the latest max test + calendar date — nothing rep-related is stored in AppData; `sessionRoundReps(data, date)` computes it on the fly, so the Plan tab shows the climbing day-by-day schedule.
+- One track only (habit), per the methodology spec in `attached_assets`. A daily session is 5 descending rounds (`ROUND_PERCENTS` = 100/90/85/80/75% of the session target). `dailyTarget` = floor(max×0.5) bounded [2, per-level cap] (`LEVEL_REP_CAP` = 15/12/10/8 for wall/incline/knee/full), stored in AppData and evolved by weekly progression.
+- Session type follows a fixed weekly pattern by weekday (`sessionTypeForWeekday`): Standard (100%), Lighter (~85%), Easy (~65%) — Mon Std, Tue Light, Wed Std, Thu Easy, Fri Std, Sat Light, Sun Std. `planForWeekday(dailyTarget, weekday)` yields `{type, target, rounds[5], total}`.
+- Weekly progression (`evaluateWeek`, run on load + foreground): +1 to `dailyTarget` after ≥6 complete sessions at avg RPE≤7; −1 if avg RPE≥8 or rounds left unfinished; hold otherwise. Capped at the level cap, floored at 2. Rest is user-set (`settings.restSeconds`, 30–120 s). Max re-test prompted after 21 days recomputes `dailyTarget` from the new max. Level changes only via Settings override.
 - Import/export is plain JSON via share sheet / paste; imports are sanitized field-by-field before persisting
 
 ## Product

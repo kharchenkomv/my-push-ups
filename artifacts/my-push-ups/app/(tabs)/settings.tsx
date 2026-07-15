@@ -19,10 +19,11 @@ import { Card, Chip, PrimaryButton, SectionTitle } from "@/components/UI";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { rescheduleReminders } from "@/lib/notifications";
-import { DAY_LABELS, LEVEL_INFO } from "@/lib/training";
+import { DAY_LABELS, LEVEL_INFO, formatSeconds } from "@/lib/training";
 import type { Level, ReminderConfig, Settings } from "@/lib/types";
 
 const GOALS = [20, 30, 50, 100];
+const REST_OPTIONS = [30, 45, 60, 90, 120]; // seconds; spec caps rest at 2 min
 
 export default function SettingsScreen() {
   const colors = useColors();
@@ -123,6 +124,25 @@ export default function SettingsScreen() {
         </View>
         <Text style={[styles.rowHint, { color: colors.mutedForeground }]}>
           5 = weekdays, 6 = all but Sunday, 7 = every day.
+        </Text>
+      </Card>
+
+      <Card style={styles.cardGap}>
+        <Text style={[styles.rowLabel, { color: colors.foreground }]}>
+          Rest between rounds
+        </Text>
+        <View style={styles.chipRow}>
+          {REST_OPTIONS.map((sec) => (
+            <Chip
+              key={sec}
+              label={formatSeconds(sec)}
+              active={s.restSeconds === sec}
+              onPress={() => apply({ restSeconds: sec })}
+            />
+          ))}
+        </View>
+        <Text style={[styles.rowHint, { color: colors.mutedForeground }]}>
+          Up to 2:00 between the 5 rounds.
         </Text>
       </Card>
 

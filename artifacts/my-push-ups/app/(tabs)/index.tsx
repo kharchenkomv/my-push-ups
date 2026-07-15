@@ -16,8 +16,8 @@ import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
   LEVEL_INFO,
-  SESSION_REST_SECONDS,
   SESSION_ROUNDS,
+  SESSION_TYPE_LABEL,
   bestMax,
   currentStreak,
   dateKey,
@@ -25,8 +25,8 @@ import {
   formatSeconds,
   isHabitDay,
   maxTestDue,
+  planForDate,
   sessionOn,
-  sessionRoundReps,
 } from "@/lib/training";
 
 export default function TodayScreen() {
@@ -46,7 +46,7 @@ export default function TodayScreen() {
   const streak = currentStreak(data.sessions);
   const best = bestMax(data, data.level);
   const daysSince = daysSinceMaxTest(data);
-  const todayReps = sessionRoundReps(data);
+  const plan = planForDate(data, today);
 
   return (
     <ScrollView
@@ -121,15 +121,15 @@ export default function TodayScreen() {
         ]}>
           <View style={styles.trackCardHead}>
             <Text style={[styles.trackTag, { color: colors.secondary }]}>
-              Today's exercise
+              {SESSION_TYPE_LABEL[plan.type]} session
             </Text>
             <Text style={styles.trackCardTime}>~5 min</Text>
           </View>
           <Text style={[styles.trackCardTitle, { color: colors.foreground }]}>
-            {SESSION_ROUNDS} rounds of {todayReps}
+            {plan.rounds.join(" · ")}
           </Text>
           <Text style={[styles.trackCardMeta, { color: colors.mutedForeground }]}>
-            {LEVEL_INFO[data.level]?.name} · rest {formatSeconds(SESSION_REST_SECONDS)} between rounds
+            {SESSION_ROUNDS} rounds · {plan.total} reps · {LEVEL_INFO[data.level]?.name} · rest {formatSeconds(data.settings.restSeconds)}
           </Text>
           <View style={styles.cardBtn}>
             <PrimaryButton

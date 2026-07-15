@@ -43,13 +43,50 @@ export const MILESTONES = [10, 20, 30, 50, 75, 100];
 export const RETEST_DAYS = 21;
 export const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// One daily session is 5 rounds (per user request), with a short rest between
-// rounds (spec §4.4: 30–60 s for habit work). The per-round rep target ramps
-// up gradually over the days since the last max test — see sessionRoundReps.
+// --- Session methodology (spec §1) --------------------------------------------
+
 export const SESSION_ROUNDS = 5;
-export const SESSION_REST_SECONDS = 60;
-export const RAMP_STEP_DAYS = 3; // +1 rep per round every 3 days
-export const REP_CAP = 15; // spec §4.3 upper bound for habit reps
+// Descending per-round share of the session target (spec §1.2).
+export const ROUND_PERCENTS = [1, 0.9, 0.85, 0.8, 0.75];
+// Per-variation caps on the daily target (spec §1.3): wall, incline, knee, full.
+export const LEVEL_REP_CAP: number[] = [15, 12, 10, 8];
+export const MIN_DAILY_TARGET = 2;
+export const MAX_REST_SECONDS = 120; // spec §1.1 / §4: rest cannot exceed 2 min
+export const DEFAULT_REST_SECONDS = 60;
+
+export type SessionType = "standard" | "lighter" | "easy";
+
+// Session-type intensity as a fraction of the Standard daily target (spec §1.4).
+export const SESSION_MULT: Record<SessionType, number> = {
+  standard: 1,
+  lighter: 0.85, // "about 80–85%"
+  easy: 0.65, // "about 60–70%"
+};
+
+export const SESSION_TYPE_LABEL: Record<SessionType, string> = {
+  standard: "Standard",
+  lighter: "Lighter",
+  easy: "Easy technique",
+};
+
+// Fixed weekly pattern (spec §1.5), mapped onto weekdays Mon..Sun.
+// weekday: 0 = Sunday … 6 = Saturday.
+const WEEKDAY_SESSION: Record<number, SessionType> = {
+  1: "standard", // Mon (Day 1)
+  2: "lighter", // Tue (Day 2)
+  3: "standard", // Wed (Day 3)
+  4: "easy", // Thu (Day 4)
+  5: "standard", // Fri (Day 5)
+  6: "lighter", // Sat (Day 6)
+  0: "standard", // Sun (Day 7)
+};
+
+export interface DayPlan {
+  type: SessionType;
+  target: number; // this session's target reps (round 1 value)
+  rounds: number[]; // 5 descending per-round targets
+  total: number;
+}
 
 export function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -86,16 +123,65 @@ export function weekStartKey(d: Date = new Date()): string {
   return dateKey(m);
 }
 
+export function weekdayOf(key: string): number {
+  return keyToDate(key).getDay();
+}
+
 export function formatSeconds(total: number): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${`${s}`.padStart(2, "0")}`;
 }
 
-// Spec §4.3: base per-round reps = floor(max_reps × 0.4), bounded 3..15.
-export function baseRoundReps(maxReps: number): number {
-  return clamp(Math.floor(maxReps * 0.4), 3, REP_CAP);
+// --- Target & round maths -----------------------------------------------------
+
+export function levelCap(level: Level): number {
+  return LEVEL_REP_CAP[level] ?? 8;
 }
+
+// Spec §1.3: daily_target = floor(max_reps × 0.5), bounded [2, per-level cap].
+export function dailyTargetFor(maxReps: number, level: Level): number {
+  return clamp(Math.floor(maxReps * 0.5), MIN_DAILY_TARGET, levelCap(level));
+}
+
+export function sessionTypeForWeekday(weekday: number): SessionType {
+  return WEEKDAY_SESSION[weekday] ?? "standard";
+}
+
+// This session's target reps for a given intensity (spec §1.4).
+export function sessionTargetReps(
+  dailyTarget: number,
+  type: SessionType,
+): number {
+  if (type === "standard") return Math.max(MIN_DAILY_TARGET, dailyTarget);
+  return Math.max(MIN_DAILY_TARGET, Math.round(dailyTarget * SESSION_MULT[type]));
+}
+
+// The 5 descending per-round targets, kept non-increasing with a floor of 1.
+export function roundReps(sessionTarget: number): number[] {
+  let prev = Infinity;
+  return ROUND_PERCENTS.map((p) => {
+    let v = Math.max(1, Math.round(sessionTarget * p));
+    if (v > prev) v = prev;
+    prev = v;
+    return v;
+  });
+}
+
+// Full plan for a given weekday from the stored daily target.
+export function planForWeekday(dailyTarget: number, weekday: number): DayPlan {
+  const type = sessionTypeForWeekday(weekday);
+  const target = sessionTargetReps(dailyTarget, type);
+  const rounds = roundReps(target);
+  return { type, target, rounds, total: rounds.reduce((a, b) => a + b, 0) };
+}
+
+// Convenience: today's (or a given date's) plan for the user's data.
+export function planForDate(data: AppData, key: string = dateKey()): DayPlan {
+  return planForWeekday(data.dailyTarget, weekdayOf(key));
+}
+
+// --- Max test & scheduling ----------------------------------------------------
 
 export function latestMaxTest(
   data: AppData,
@@ -107,32 +193,6 @@ export function latestMaxTest(
 
 export function currentMaxReps(data: AppData): number {
   return latestMaxTest(data, data.level)?.reps ?? 5;
-}
-
-// Per-round rep target for a given day. Starts at the base and rises by 1 every
-// RAMP_STEP_DAYS days since the last max test for the current level, capped at
-// REP_CAP and at the user's tested max. A fresh max test resets the ramp from a
-// new (higher) base. Deterministic in the date, so the Plan tab can show the
-// whole climbing schedule ahead of time.
-export function sessionRoundReps(
-  data: AppData,
-  onDate: string = dateKey(),
-): number {
-  const latest = latestMaxTest(data, data.level);
-  const maxReps = latest?.reps ?? 5;
-  const base = baseRoundReps(maxReps);
-  const dayIndex = latest ? Math.max(0, daysBetween(latest.date, onDate)) : 0;
-  const step = Math.floor(dayIndex / RAMP_STEP_DAYS);
-  const cap = Math.max(3, Math.min(REP_CAP, maxReps));
-  return clamp(base + step, 3, cap);
-}
-
-// Total reps prescribed for a day's session (all rounds).
-export function sessionTotalReps(
-  data: AppData,
-  onDate: string = dateKey(),
-): number {
-  return SESSION_ROUNDS * sessionRoundReps(data, onDate);
 }
 
 export function daysSinceMaxTest(data: AppData): number | null {
@@ -158,6 +218,41 @@ export function sessionOn(
   return sessions.find((s) => s.date === key);
 }
 
+// --- Weekly progression (spec §2.1) -------------------------------------------
+
+export function evaluateWeek(
+  data: AppData,
+  now: Date = new Date(),
+): Partial<AppData> | null {
+  const currentWeek = weekStartKey(now);
+  if (data.lastWeekEvaluated === currentWeek) return null;
+  const prevStart = addDays(currentWeek, -7);
+  const prev = data.sessions.filter(
+    (s) => s.date >= prevStart && s.date < currentWeek,
+  );
+  let target = data.dailyTarget;
+  const cap = levelCap(data.level);
+  if (prev.length > 0) {
+    const rated = prev.filter((s) => s.rpe !== null);
+    const avg =
+      rated.length > 0
+        ? rated.reduce((a, s) => a + (s.rpe ?? 0), 0) / rated.length
+        : 5;
+    const allRoundsDone = prev.every(
+      (s) => s.roundsCompleted >= s.roundsPlanned,
+    );
+    if (prev.length >= 6 && avg <= 7 && allRoundsDone) {
+      target = Math.min(cap, target + 1); // +1 rep, conservative
+    } else if (avg >= 8 || !allRoundsDone) {
+      target = Math.max(MIN_DAILY_TARGET, target - 1);
+    }
+    // otherwise hold
+  }
+  return { dailyTarget: target, lastWeekEvaluated: currentWeek };
+}
+
+// --- Stats --------------------------------------------------------------------
+
 export function currentStreak(
   sessions: SessionEntry[],
   today: string = dateKey(),
@@ -182,9 +277,12 @@ export function bestMax(data: AppData, level: Level): number {
     .reduce((a, t) => Math.max(a, t.reps), 0);
 }
 
+// --- Construction & persistence ----------------------------------------------
+
 export function defaultSettings(goalReps: number): Settings {
   return {
     habitDaysPerWeek: 7,
+    restSeconds: DEFAULT_REST_SECONDS,
     goalReps,
     sound: true,
     haptics: true,
@@ -206,6 +304,8 @@ export function createInitialData(params: {
     settings: defaultSettings(goalReps),
     maxTests: [{ date: dateKey(), level, reps: maxReps }],
     sessions: [],
+    dailyTarget: dailyTargetFor(maxReps, level),
+    lastWeekEvaluated: weekStartKey(),
     needsMaxTest: false,
   };
 }
@@ -276,10 +376,9 @@ function sanitizeReminder(
   };
 }
 
-// Accepts current backups as well as legacy ones from earlier app versions:
-// unknown fields (roundRepsHabit, lastHabitWeekEvaluated, strength-track data,
-// per-session `track`, …) are dropped, and old sessions are kept as plain
-// history so streaks and stats survive.
+// Accepts current backups plus legacy ones (roundRepsHabit, ramp fields,
+// strength-track data, per-session `track`, …): unknown fields are dropped and
+// old sessions kept as history so streaks/stats survive.
 export function sanitizeImport(raw: unknown): AppData | null {
   if (typeof raw !== "object" || raw === null) return null;
   const o = raw as Record<string, unknown>;
@@ -336,6 +435,11 @@ export function sanitizeImport(raw: unknown): AppData | null {
     habitDaysPerWeek: [5, 6, 7].includes(numOr(so.habitDaysPerWeek, 7))
       ? (numOr(so.habitDaysPerWeek, 7) as number)
       : 7,
+    restSeconds: clamp(
+      Math.floor(numOr(so.restSeconds, DEFAULT_REST_SECONDS)),
+      15,
+      MAX_REST_SECONDS,
+    ),
     goalReps: clamp(Math.floor(numOr(so.goalReps, def.goalReps)), 1, 999),
     sound: boolOr(so.sound, true),
     haptics: boolOr(so.haptics, true),
@@ -353,6 +457,9 @@ export function sanitizeImport(raw: unknown): AppData | null {
     acknowledged: boolOr(ho.acknowledged, true),
   };
 
+  const latestReps = latestTestReps(maxTests, level) ?? 5;
+  const cap = levelCap(level);
+
   return {
     onboardingComplete: true,
     level,
@@ -360,8 +467,25 @@ export function sanitizeImport(raw: unknown): AppData | null {
     settings,
     maxTests,
     sessions,
+    dailyTarget: clamp(
+      Math.floor(numOr(o.dailyTarget, dailyTargetFor(latestReps, level))),
+      MIN_DAILY_TARGET,
+      cap,
+    ),
+    lastWeekEvaluated:
+      typeof o.lastWeekEvaluated === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(o.lastWeekEvaluated)
+        ? o.lastWeekEvaluated
+        : weekStartKey(),
     needsMaxTest: boolOr(o.needsMaxTest, false),
   };
+}
+
+function latestTestReps(tests: MaxTestEntry[], level: Level): number | null {
+  const filtered = tests.filter((t) => t.level === level);
+  return filtered.length > 0
+    ? (filtered[filtered.length - 1]?.reps ?? null)
+    : null;
 }
 
 export function newId(): string {

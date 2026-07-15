@@ -1,286 +1,153 @@
 # My Push Ups App – Methodological Specification
 
-## 1. Purpose and Target Users
+## 1. Habit Session
 
-- Target users:
-  - Healthy adults with low sport activity (e.g., office workers) who can safely perform light-to-moderate resistance exercise.[cite:12][cite:20]
-- Primary goals:
-  - Build a daily “morning push-up” habit via very low-volume, submaximal training.
-- Increase upper-body strength and endurance toward a user-defined push-up goal (e.g., 30, 50, 100 continuous reps).[cite:3][cite:30]
+Habit Session is the only training mode in the app.[cite:32][cite:41]
 
-All training logic must follow modern resistance-training guidelines for beginners (ACSM Position Stand 2026, RT frequency meta-analyses, and push-up progression literature). The app should never push users into excessive volume or all-out failure, especially at beginner levels.[cite:12][cite:18][cite:27][cite:30]
+### 1.1 Frequency and structure
 
----
-  
-  ## 2. Levels and Exercise Variations
-  
-  The app uses four progressive push-up levels:
-  
-  - Level 0: Wall push-ups (hands on wall, body angled).
-- Level 1: Incline push-ups (hands on elevated surface: counter, bench, step).
-- Level 2: Knee push-ups (knees on floor).
-- Level 3: Full push-ups (standard floor push-ups).
+- Frequency: **7 days per week**.
+- Session format: **5 rounds** per day.
+- Rest between rounds: user-defined in settings, with a maximum of **2 minutes**.[cite:32][cite:6]
+- Session logic must stay submaximal and technique-focused, not failure-focused.[cite:32][cite:41]
 
-### Level selection rules
+### 1.2 Rep structure per session
 
-Onboarding must select the starting level as follows:
-  
-  - If the user cannot perform 1 knee push-up with good form → assign Level 0 (wall).
-- If the user can perform ≥8 wall push-ups × 3 sets easily → assign Level 1 (incline).
-- If the user can perform ≥8 low-incline push-ups but <8 full push-ups → assign Level 2 (knee).
-- If the user can perform ≥8 full push-ups with good form → assign Level 3 (full).[cite:30][cite:3]
+The app should not use the same number of reps in every round. A descending structure is more suitable for beginners and daily habit training because fatigue accumulates during repeated push-up sets, while technique should stay clean across all 5 rounds.[cite:32][cite:39][cite:41]
 
----
-  
-  ## 3. Health Screening and Initial Max Test
-  
-  ### 3.1 Health screening (required before plan generation)
-  
-  Before creating a training plan, the app must ask basic health questions:
-  
-  - Cardiovascular disease or uncontrolled hypertension? (yes/no)
-- Major joint or spine problems? (yes/no)
-- Current chest, shoulder, or wrist pain? (yes/no)
+Default round structure:
 
-If any serious issue is reported (e.g., cardiovascular disease, uncontrolled BP, major joint problems), the app must:
-  
-  - Show a clear warning: “Consult a physician or qualified health professional before starting this program.”
-- Allow the user to proceed only after acknowledging the warning.[cite:12][cite:20]
+- Round 1: **100%** of the daily target reps.
+- Round 2: **90%** of the daily target reps.
+- Round 3: **85%** of the daily target reps.
+- Round 4: **80%** of the daily target reps.
+- Round 5: **75%** of the daily target reps.
 
-### 3.2 Initial max test (per level)
+This descending model spreads fatigue more evenly than a steep drop such as 100/80/70/70/50, and keeps later rounds meaningful for adaptation instead of turning them into near-recovery sets.[cite:32][cite:39][cite:41]
 
-For the selected level, the app runs a single max-rep test:
-  
-  - User performs 1 set to **technical limit** (stop when form breaks; do not force absolute failure).
-- The app records `max_reps` for that level (integer ≥1).
-- `max_reps` is the base parameter for daily habit and 3-day strength plans.[cite:3][cite:30]
+### 1.3 Daily target calculation
 
----
-  
-  ## 4. Daily Habit Track – “Morning Quick Push-Ups”
-  
-  ### 4.1 Goal and constraints
-  
-  - Goal: create a sustainable daily movement habit.
-- Constraint: habit sets must be clearly **submaximal**, short (~1–2 minutes), and safe for non-sportive users.[cite:12][cite:20]
+The daily target must be based on the user’s current maximum number of technically correct repetitions in the selected push-up variation.
 
-### 4.2 Frequency and structure
+Recommended formula:
 
-- Frequency:
-  - Default = **daily** (7 days/week).
-- User can choose 5–7 days/week (e.g., weekdays only).
-- Rounds per habit session:
-  - All levels: **1 round** per morning.
-- Optional 2nd round if user explicitly taps “Add another round”.
+1. Compute `daily_target = floor(max_reps × 0.5)`.
+2. Apply a lower bound of **2 reps**.
+3. Apply conservative upper caps to keep sessions sustainable:
+   - Wall push-ups: cap at 15.
+   - Incline push-ups: cap at 12.
+   - Knee push-ups: cap at 10.
+   - Full push-ups: cap at 8 in the base phase.[cite:32][cite:41]
 
-### 4.3 Habit reps per round
+The 5 round targets are then derived from `daily_target` using the percentage model above.
 
-For the current level and recorded `max_reps`:
-  
-  - Compute:
-  - `round_reps_habit = floor(max_reps * 0.4)`
-- Apply bounds:
-  - If `round_reps_habit < 3` → use 3.
-- If `round_reps_habit > 15` → cap at 15.
+Example for `daily_target = 10`:
 
-The same `round_reps_habit` is used for both rounds if the user chooses two rounds.
+- Round 1: 10
+- Round 2: 9
+- Round 3: 8 or 9 (rounding rule defined by implementation)
+- Round 4: 8
+- Round 5: 7 or 8
 
-### 4.4 Habit rest
+The implementation may round to the nearest whole number, but it should preserve the descending pattern.
 
-- If user performs 2 habit rounds:
-  - Rest between rounds: **30–60 seconds** (user can proceed early by tapping “Next round”).[cite:12][cite:30]
+### 1.4 Session types inside the 7-day plan
 
-### 4.5 Habit progression rule
+Because the plan runs every day, the app should use more than one session intensity.
 
-At the end of each week:
-  
-  - Inputs:
-  - `sessions_completed` (number of habit days).
-- Average perceived effort (RPE) from user ratings (scale 1–10).
+#### Standard Habit Session
 
-Progression:
-  
-  - If `sessions_completed >= 5` AND average RPE ≤ 7:
-  - Increase `round_reps_habit` by **+1 rep** (next week).
-- Ensure weekly volume increase ≤ ~10% (if exceeded, limit to +1).[cite:20][cite:12]
-- Else if average RPE ≥ 8 OR `sessions_completed < 3`:
-  - Keep `round_reps_habit` unchanged or decrease by 1 (safety-first behavior).
+Used on normal training days.
 
-Habit track always uses **the same level variation** as the strength track, to reinforce the same movement pattern.[cite:30]
+- Full `daily_target`.
+- 5 rounds using 100/90/85/80/75%.
+- Intended to provide the main training stimulus.[cite:32][cite:41]
 
----
-  
-  ## 5. Strength/Endurance Track – 3 Days per Week
-  
-  ### 5.1 Goal and structure
-  
-  - Goal: increase push-up strength and endurance toward the user’s continuous-rep goal.
-- Frequency: **3 sessions per week** on non-consecutive days (e.g., Mon/Wed/Fri).
-- Rounds per session: **5 rounds** (5 sets).
-- Rest between rounds:
-  - Default: **120 seconds**.
-- User-adjustable: 60–150 seconds.
-- The program must remain within evidence-based inter-set rest ranges for beginners (roughly 60–120 s).[cite:12][cite:13][cite:3][cite:30]
+#### Lighter Habit Session
 
-### 5.2 Initial volume prescription (per level)
+Used to reduce fatigue while preserving the daily habit and movement pattern.[cite:44]
 
-Using the level’s `max_reps`:
-  
-  1. Compute weekly training volume:
-  - `weekly_total_reps = max_reps * 2`.[cite:3]
+- Use about **80–85%** of the standard `daily_target`.
+- Keep the same 5-round descending structure.
+- Best used after harder days, higher soreness, poor sleep, or higher RPE reports.[cite:44][cite:49]
 
-2. Split across sessions:
-  - `per_session_total = weekly_total_reps / 3`.
+#### Easy Technique Session
 
-3. Split across rounds:
-  - `round_reps_strength = per_session_total / 5`.
+Used when recovery is limited or when the user needs to reinforce form.
 
-4. Apply bounds:
-  - Minimum per round = 3 reps.
-- Maximum (initial phase) per round:
-  - Levels 0–2 (wall, incline, knee): cap at 8–15 reps.
-- Level 3 (full): cap at 15 reps initially; later allow up to 25–40 reps as endurance improves.[cite:12][cite:27][cite:3]
+- Use about **60–70%** of the standard `daily_target`.
+- Same 5-round structure, but all reps must feel easy and technically precise.
+- Emphasise body alignment, tempo, and pain-free movement instead of workload.[cite:44][cite:49]
 
-The app must round `round_reps_strength` to an integer within these bounds.
+A separate test-style session is excluded from this specification.
 
-### 5.3 Round execution logic
+### 1.5 Suggested weekly pattern
 
-For each strength session:
-  
-  - Session consists of 5 rounds:
-  - Round i:
-  - UI shows `round_reps_strength` inside a big circle.
-- User performs that number of push-ups for the current level.
-- User taps the circle to mark completion.
-- App starts a rest timer for configured duration (default 120 s).
-- After rest:
-  - App increments round counter (e.g., from 2/5 to 3/5).
-- Displays `round_reps_strength` again for the next round.
+To support daily training without turning every day into a hard day, the app should distribute session types across the week as follows:
 
----
-  
-  ## 6. Strength Track Progression and Deload
-  
-  ### 6.1 Session-level progression rule
-  
-  For each user:
-  
-  - Collect per-session data:
-  - Whether all 5 rounds were completed at prescribed reps.
-- Perceived effort (RPE 1–10).
+- Day 1: Standard Habit Session
+- Day 2: Lighter Habit Session
+- Day 3: Standard Habit Session
+- Day 4: Easy Technique Session
+- Day 5: Standard Habit Session
+- Day 6: Lighter Habit Session
+- Day 7: Standard Habit Session
 
-Progression:
-  
-  - If the user completes all 5 rounds at `round_reps_strength` for **two consecutive sessions** AND RPE ≤ 7:
-  - Increase `round_reps_strength` by **+1 rep per round** at the next session.
-- Ensure total weekly volume increase ≤ ~10–15%.[cite:20][cite:12]
+This keeps the user on a 7-day habit plan while still respecting recovery principles.[cite:44][cite:32]
 
-- If the user fails more than one round OR RPE ≥ 9:
-  - Keep `round_reps_strength` unchanged OR decrease by 1 for the following session.
+## 2. Progression
 
-### 6.2 Deload week
+### 2.1 Weekly progression rule
 
-When `round_reps_strength` reaches the upper cap for the current phase:
-  
-  - For one week:
-  - Keep `round_reps_strength` constant.
-- Reduce rounds per session from 5 to **3 rounds**.
-- After deload:
-  - Resume 5 rounds with the same or slightly increased reps depending on RPE and completion.[cite:17][cite:12][cite:30]
+The app must store:
 
-### 6.3 Periodic max re-tests
+- sessions completed,
+- round-by-round completion,
+- RPE after each session on a 1 to 10 scale,
+- optional pain or recovery feedback.
 
-Every **3–4 weeks**:
-  
-  - The app prompts a max-rep test for the current level.
-- After test:
-  - Recompute `weekly_total_reps` and `round_reps_strength` using the new `max_reps`.
-- This keeps training tailored to current capacity and follows basic periodization principles.[cite:12][cite:17][cite:30]
+Progression rules:
 
----
-  
-  ## 7. Level-Specific Progression Rules
-  
-  All level transitions must be controlled by performance thresholds.
+- If the user completes at least **6 of 7 sessions**, completes all rounds as prescribed, and average RPE is **7 or lower**, increase `daily_target` by **+1 rep** for the next week.[cite:32][cite:39]
+- If average RPE is **8 or higher**, if rounds are frequently missed, or if recovery feedback is poor, keep the same `daily_target` or reduce it by **1 rep**.[cite:32][cite:44]
+- Increases must remain conservative, and the app should avoid abrupt jumps in weekly total volume.[cite:32][cite:41]
 
-### Level 0 (Wall push-ups)
+### 2.2 Re-test rule
 
-- Habit:
-  - Daily 1 round with `round_reps_habit`.
-- Strength:
-  - 3 sessions/week, 5 rounds with `round_reps_strength`, each 3–10 reps.
-- Progress to Level 1 (Incline) when:
-  - User can perform **3 sets of 8 wall push-ups** in one session with good form and RPE ≤ 7.[cite:30]
+The app may prompt a new max-repetition test every **3–4 weeks** to refresh `max_reps` and recalculate `daily_target`.[cite:32][cite:41]
 
-### Level 1 (Incline push-ups)
+## 3. Safety, feedback and execution
 
-- Habit:
-  - Daily 1 round (`round_reps_habit` 3–12).
-- Strength:
-  - 3 sessions/week, 5 rounds, each 3–12 reps.
-- Progress by gradually lowering the incline over time.
-- Move to Level 2 (Knee) or Level 3 (Full) when:
-  - User can perform **3 sets of 8–10 low-incline push-ups** comfortably AND
-- A full push-up test shows ≥3–8 reps (threshold can be chosen in app settings).[cite:30]
+### 3.1 Safety and feedback
 
-### Level 2 (Knee push-ups)
+Training logic must prioritise technique and recovery.
 
-- Habit:
-  - Daily 1 round (`round_reps_habit` 3–12).
-- Strength:
-  - 3 sessions/week, 5 rounds, each 3–15 reps.
-- Progress to Level 3 (Full) when:
-  - User can perform **3 sets of 8–12 knee push-ups** with good form AND
-- A full push-up max test shows ≥8 reps.[cite:30]
+- The user should stop the set when form breaks down.
+- If wrist, shoulder, elbow, or chest pain occurs, the app should recommend reducing reps, using an easier variation, or stopping the session.[cite:44]
+- RPE and pain feedback must influence the next sessions and weekly progression.[cite:32][cite:44]
 
-### Level 3 (Full push-ups)
+### 3.2 UI logic
 
-- Habit:
-  - Daily 1–2 rounds (`round_reps_habit` 5–15), never to failure.
-- Strength:
-  - 3 sessions/week, 5 rounds, initial caps 8–15 reps, extended caps up to 25–40 reps as endurance develops.[cite:12][cite:27][cite:3][cite:4]
+For each round:
 
-High-endurance phase for goals like 100 continuous push-ups:
-  
-  - As the user approaches **5 rounds of 30–40 reps**, total session volume (~150–200 reps) may justify:
-  - Adding a weekly **max-attempt session** (1 set AMRAP).
-- Slightly reducing volume on other days (undulating periodization).[cite:3][cite:4][cite:10][cite:17][cite:12]
+1. Show the prescribed reps inside the large circle.
+2. User completes the round and taps the circle.
+3. The app starts the configured rest timer.
+4. After rest, the app advances to the next round.
+5. At the end of round 5, mark the session complete and store feedback.
 
----
-  
-  ## 8. Safety, Form and Feedback
-  
-  Training logic must always prioritise safety and technique:
-  
-  - Form cues:
-  - Neutral spine, no hip sag.
-- Elbows approximately 45° from torso.
-- Controlled tempo, full range of motion.[cite:3][cite:30]
-- Pain rules:
-  - If user reports pain in wrists, shoulders, or chest:
-  - Suggest options: fists, push-up handles, higher inclines.
-- Consider temporarily reducing reps or rounds.
-- Feedback:
-  - After each session:
-  - Store completion (round-by-round).
-- Store RPE (1–10).
-- Use these data in progression and deload rules (see sections 6 and 7).[cite:32][cite:12]
+## 4. Integration with UI
 
----
-  
-  ## 9. Integration with UI (Big Circle and Timer)
-  
-  Training methodology must be mapped to UI as follows:
-  
-  - Each round:
-  - Show `round_reps` (habit or strength) in a large central circle.
-- User completes the specified reps and taps the circle.
-- App starts the rest timer (default 120 s).
-- After rest:
-  - App shows the next round index (e.g., “Round 2 of 5”) and the same `round_reps` (or updated value if progression logic changes mid-session).
-- End of session:
-  - Mark session as complete.
-- Update weekly metrics and progression according to rules defined above.
-- Propose the next day’s habit and strength plan with any adjusted reps.
+The methodology must map directly to the app interface:
 
-This specification describes *only* the training methodology and should be used by the AI app-builder to implement all logic around: level selection, habit sessions, strength sessions, reps per round, rest, progression, deload, and level transitions, in accordance with current scientific recommendations for beginner resistance training and push-up progressions.[cite:12][cite:18][cite:3][cite:30]
+- The big circle shows the rep target for the current round.
+- The screen shows the round index, for example “Round 3 of 5”.
+- After completion of a round, the rest timer starts automatically.
+- Rest duration comes from user settings but cannot exceed 2 minutes.
+- The next day’s session type and reps are generated from the weekly pattern plus progression rules.
+
+## 5. Scope of this specification
+
+This specification describes only the methodology for a habit-only push-up app with 7 days per week planning, 5 rounds per session, descending reps, configurable rest, and progression based on completion and recovery.[cite:32][cite:41]
+
+Strength training as a separate mode is fully excluded.
