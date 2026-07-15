@@ -4,6 +4,7 @@ import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Card, SectionTitle } from "@/components/UI";
+import { RepsChart } from "@/components/RepsChart";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
@@ -38,6 +39,10 @@ export default function ProgressScreen() {
   const today = dateKey();
   const start = addDays(today, -27);
   const sessionDays = new Set(data.sessions.map((s) => s.date));
+  const repsSeries = data.sessions.map((s) => ({
+    date: s.date,
+    total: s.repsPerRound.reduce((x, y) => x + y, 0),
+  }));
 
   const recentTests = [...data.maxTests].reverse().slice(0, 6);
 
@@ -101,6 +106,30 @@ export default function ProgressScreen() {
           </Card>
         </View>
       </View>
+
+      <SectionTitle>Push-ups over time</SectionTitle>
+      <Card>
+        {repsSeries.length === 0 ? (
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            Finish your first session to start the graph.
+          </Text>
+        ) : (
+          <>
+            <View style={styles.chartHead}>
+              <Text style={[styles.chartTotal, { color: colors.foreground }]}>
+                {totalReps}
+              </Text>
+              <Text
+                style={[styles.chartTotalLabel, { color: colors.mutedForeground }]}
+              >
+                total push-ups · {totalSessions}{" "}
+                {totalSessions === 1 ? "session" : "sessions"}
+              </Text>
+            </View>
+            <RepsChart points={repsSeries} />
+          </>
+        )}
+      </Card>
 
       <SectionTitle>Last 4 weeks</SectionTitle>
       <Card>
@@ -229,6 +258,13 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontFamily: "SpaceGrotesk_700Bold",
     marginBottom: 16,
+  },
+  chartHead: { marginBottom: 8 },
+  chartTotal: { fontSize: 28, fontFamily: "SpaceGrotesk_700Bold" },
+  chartTotalLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    marginTop: 2,
   },
   statsRow: { flexDirection: "row", gap: 12 },
   statCard: {

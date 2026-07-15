@@ -4,7 +4,7 @@ import React from "react";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
-import { addDays, createInitialData, weekStartKey } from "../lib/training";
+import { createInitialData } from "../lib/training";
 import type { AppData, SessionEntry } from "../lib/types";
 
 // ---------------------------------------------------------------------------
@@ -161,9 +161,9 @@ function makeSessionInput(
     date: "2026-07-06",
     level: 2,
     targetReps: 4,
-    roundsPlanned: 1,
-    roundsCompleted: 1,
-    repsPerRound: [4],
+    roundsPlanned: 5,
+    roundsCompleted: 5,
+    repsPerRound: [4, 4, 4, 4, 4],
     rpe: 6,
     painFlags: [],
     ...overrides,
@@ -197,7 +197,6 @@ describe("AppContext: completeSession", () => {
     const data = ctx.current!.data!;
     assert.equal(data.sessions.length, 1);
     assert.equal(data.sessions[0]?.targetReps, 4);
-    assert.equal(data.roundRepsHabit, seed.roundRepsHabit);
 
     // Persisted copy matches in-memory state exactly.
     assert.deepEqual(persisted(), data);
@@ -227,8 +226,8 @@ describe("AppContext: completeSession", () => {
 });
 
 describe("AppContext: recordMaxTest", () => {
-  it("appends a max test and recalibrates habit reps", async () => {
-    seedStorage(makeData());
+  it("appends a max test and clears the needs-test flag", async () => {
+    seedStorage(makeData({ needsMaxTest: true }));
     const { ctx, renderer } = await mountProvider();
 
     await runAction(() => ctx.current!.recordMaxTest(20));
@@ -236,7 +235,6 @@ describe("AppContext: recordMaxTest", () => {
     const data = ctx.current!.data!;
     assert.equal(data.maxTests.length, 2);
     assert.equal(data.maxTests[1]?.reps, 20);
-    assert.equal(data.roundRepsHabit, 8); // 40% of 20
     assert.equal(data.needsMaxTest, false);
     assert.deepEqual(persisted(), data);
 
@@ -244,61 +242,9 @@ describe("AppContext: recordMaxTest", () => {
   });
 });
 
-describe("AppContext: weekly habit evaluation on load", () => {
-  it("runs evaluateHabitWeek exactly once when opening in a new week", async () => {
-    const currentWeek = weekStartKey();
-    const prevWeek = addDays(currentWeek, -7);
-    // Two habit sessions last week (< 3) forces exactly one -1 adjustment.
-    const seed = makeData({
-      roundRepsHabit: 6,
-      lastHabitWeekEvaluated: prevWeek,
-      sessions: [
-        {
-          id: "h1",
-          date: prevWeek,
-          level: 2,
-          targetReps: 4,
-          roundsPlanned: 1,
-          roundsCompleted: 1,
-          repsPerRound: [4],
-          rpe: 5,
-          painFlags: [],
-        },
-        {
-          id: "h2",
-          date: addDays(prevWeek, 2),
-          level: 2,
-          targetReps: 4,
-          roundsPlanned: 1,
-          roundsCompleted: 1,
-          repsPerRound: [4],
-          rpe: 5,
-          painFlags: [],
-        },
-      ],
-    });
-    seedStorage(seed);
-
-    const { ctx, renderer } = await mountProvider();
-
-    const data = ctx.current!.data!;
-    assert.equal(data.roundRepsHabit, 5, "adjusted down exactly once");
-    assert.equal(data.lastHabitWeekEvaluated, currentWeek);
-    assert.deepEqual(persisted(), data);
-
-    // Re-entering foreground in the same week must not re-adjust.
-    await act(async () => {
-      for (const listener of appStateListeners) listener("active");
-      await flush();
-    });
-    assert.equal(ctx.current!.data!.roundRepsHabit, 5);
-    assert.equal(ctx.current!.data!.lastHabitWeekEvaluated, currentWeek);
-
-    await act(async () => renderer.unmount());
-  });
-
-  it("does not touch state or storage when the week is already evaluated", async () => {
-    const seed = makeData({ roundRepsHabit: 6 });
+describe("AppContext: load", () => {
+  it("does not write when loading data already in the current shape", async () => {
+    const seed = makeData();
     seedStorage(seed);
     const before = storage.get(STORAGE_KEY);
 
@@ -309,46 +255,6 @@ describe("AppContext: weekly habit evaluation on load", () => {
     assert.equal(storage.get(STORAGE_KEY), before);
 
     await act(async () => renderer.unmount());
-  });
-
-  it("evaluates once when the week rolls over while the app is running", async (t) => {
-    const seed = makeData({ roundRepsHabit: 6 });
-    seedStorage(seed);
-    const { ctx, renderer } = await mountProvider();
-    assert.equal(ctx.current!.data!.lastHabitWeekEvaluated, weekStartKey());
-
-    // Jump the clock forward one week, then simulate returning to foreground.
-    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
-    t.mock.timers.setTime(Date.now() + 7 * 86400000);
-    const newWeek = weekStartKey();
-    assert.notEqual(newWeek, seed.lastHabitWeekEvaluated);
-
-    const writesBefore = storageLog.setCalls.length;
-    await act(async () => {
-      for (const listener of appStateListeners) listener("active");
-      await flush();
-    });
-
-    const data = ctx.current!.data!;
-    assert.equal(data.lastHabitWeekEvaluated, newWeek);
-    // No habit sessions last week => reps unchanged, only the marker moves.
-    assert.equal(data.roundRepsHabit, 6);
-    assert.equal(
-      storageLog.setCalls.length,
-      writesBefore + 1,
-      "exactly one persistence write for the rollover",
-    );
-
-    // A second foreground event in the same (new) week is a no-op.
-    await act(async () => {
-      for (const listener of appStateListeners) listener("active");
-      await flush();
-    });
-    assert.equal(storageLog.setCalls.length, writesBefore + 1);
-    assert.deepEqual(persisted(), ctx.current!.data);
-
-    await act(async () => renderer.unmount());
-    t.mock.timers.reset();
   });
 });
 
@@ -413,11 +319,11 @@ describe("AppContext: persistence round-trip", () => {
     // Strength-era session survives as plain history.
     assert.equal(data.sessions.length, 1);
     assert.equal("track" in data.sessions[0]!, false);
-    // Strength fields are gone; habit fields intact.
+    // Strength fields are gone.
     assert.equal("roundRepsStrength" in data, false);
+    assert.equal("roundRepsHabit" in data, false);
     assert.equal("strengthDays" in data.settings, false);
     assert.equal("strengthReminder" in data.settings, false);
-    assert.equal(data.roundRepsHabit, seed.roundRepsHabit);
     // Pre-`days` reminder config gets the default days.
     assert.deepEqual(data.settings.habitReminder.days, [0, 1, 2, 3, 4, 5, 6]);
 

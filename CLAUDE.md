@@ -8,7 +8,7 @@ Migrated from Replit (synced via GitHub) to local dev on macOS on 2026-07-09. Of
 # Expo web preview (the package's `dev` script is Replit-specific — don't use it locally)
 cd artifacts/my-push-ups && pnpm exec expo start --web --port 21401
 
-# Training-engine test suite (54 tests, pure functions)
+# Training-engine test suite (41 tests, pure functions)
 cd artifacts/my-push-ups && pnpm run test
 
 # Typecheck everything
@@ -26,4 +26,4 @@ Same pattern as the other migrated Replit projects — the lockfile pins native 
 ## Verified working (2026-07-09)
 
 - `pnpm install` clean, Expo web bundles 1491 modules, page serves "My Push Ups" on :21401
-- All training-engine tests pass (54 as of 2026-07-10)
+- All training-engine tests pass (41 as of 2026-07-10)

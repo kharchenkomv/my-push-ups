@@ -16,21 +16,24 @@ import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
   LEVEL_INFO,
+  SESSION_REST_SECONDS,
+  SESSION_ROUNDS,
   bestMax,
-  canLevelUp,
   currentStreak,
   dateKey,
   daysSinceMaxTest,
+  formatSeconds,
   isHabitDay,
   maxTestDue,
   sessionOn,
+  sessionRoundReps,
 } from "@/lib/training";
 
 export default function TodayScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { data, levelUp } = useApp();
+  const { data } = useApp();
 
   if (!data) return null;
 
@@ -43,7 +46,7 @@ export default function TodayScreen() {
   const streak = currentStreak(data.sessions);
   const best = bestMax(data, data.level);
   const daysSince = daysSinceMaxTest(data);
-  const showLevelUp = !data.needsMaxTest && canLevelUp(data);
+  const todayReps = sessionRoundReps(data);
 
   return (
     <ScrollView
@@ -104,8 +107,9 @@ export default function TodayScreen() {
                 Done for today
               </Text>
               <Text style={[styles.trackCardMeta, { color: colors.mutedForeground }]}>
-                Habit set · {doneToday.repsPerRound.reduce((a, b) => a + b, 0)}{" "}
-                reps
+                {doneToday.repsPerRound.length}{" "}
+                {doneToday.repsPerRound.length === 1 ? "round" : "rounds"} ·{" "}
+                {doneToday.repsPerRound.reduce((a, b) => a + b, 0)} reps
               </Text>
             </View>
           </View>
@@ -117,19 +121,19 @@ export default function TodayScreen() {
         ]}>
           <View style={styles.trackCardHead}>
             <Text style={[styles.trackTag, { color: colors.secondary }]}>
-              Habit · Today
+              Today's exercise
             </Text>
-            <Text style={styles.trackCardTime}>~1 min</Text>
+            <Text style={styles.trackCardTime}>~5 min</Text>
           </View>
           <Text style={[styles.trackCardTitle, { color: colors.foreground }]}>
-            1 round of {data.roundRepsHabit}
+            {SESSION_ROUNDS} rounds of {todayReps}
           </Text>
           <Text style={[styles.trackCardMeta, { color: colors.mutedForeground }]}>
-            {LEVEL_INFO[data.level]?.name} · about a minute
+            {LEVEL_INFO[data.level]?.name} · rest {formatSeconds(SESSION_REST_SECONDS)} between rounds
           </Text>
           <View style={styles.cardBtn}>
             <PrimaryButton
-              label="Start habit round"
+              label="Start exercise"
               onPress={() =>
                 router.push({ pathname: "/workout", params: { track: "habit" } })
               }
@@ -150,21 +154,6 @@ export default function TodayScreen() {
           </Text>
         </Card>
       )}
-
-      {showLevelUp ? (
-        <View style={[styles.infoCallout, { backgroundColor: colors.success + "20", marginTop: 16 }]}>
-          <Text style={[styles.infoCalloutText, { color: colors.success }]}>
-            <Text style={{ fontFamily: "Inter_700Bold" }}>Ready to level up?</Text> Your max test shows {LEVEL_INFO[data.level]?.name.toLowerCase()} are getting easy.
-          </Text>
-          <View style={{ marginTop: 12 }}>
-            <PrimaryButton
-              label={`Move to ${LEVEL_INFO[data.level + 1]?.short ?? ""}`}
-              onPress={levelUp}
-              testID="btn-level-up"
-            />
-          </View>
-        </View>
-      ) : null}
 
       {!data.needsMaxTest && testDue ? (
         <Pressable

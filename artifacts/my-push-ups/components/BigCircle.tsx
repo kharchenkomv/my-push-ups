@@ -77,11 +77,16 @@ export function BigCircle({
           />
         </Svg>
         <View style={styles.center}>
-          <Text style={[styles.restValue, { color: colors.foreground }]}>
+          {/* The workout screen always sits on a dark gradient, so text must be
+              light regardless of the app's light/dark theme. */}
+          <Text
+            style={[styles.restValue, { color: "#FFFFFF" }]}
+            allowFontScaling={false}
+          >
             {value}
           </Text>
           {sublabel ? (
-            <Text style={[styles.sublabel, { color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 1 }]}>
+            <Text style={[styles.sublabel, { color: "rgba(255,255,255,0.55)", textTransform: "uppercase", letterSpacing: 1 }]}>
               {sublabel}
             </Text>
           ) : null}

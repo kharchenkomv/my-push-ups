@@ -41,9 +41,15 @@ export const LEVEL_INFO: {
 
 export const MILESTONES = [10, 20, 30, 50, 75, 100];
 export const RETEST_DAYS = 21;
-export const LEVEL_UP_REPS: Record<number, number> = { 0: 8, 1: 8, 2: 8 };
 export const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-export const HABIT_REST_SECONDS = 45;
+
+// One daily session is 5 rounds (per user request), with a short rest between
+// rounds (spec §4.4: 30–60 s for habit work). The per-round rep target ramps
+// up gradually over the days since the last max test — see sessionRoundReps.
+export const SESSION_ROUNDS = 5;
+export const SESSION_REST_SECONDS = 60;
+export const RAMP_STEP_DAYS = 3; // +1 rep per round every 3 days
+export const REP_CAP = 15; // spec §4.3 upper bound for habit reps
 
 export function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -86,8 +92,9 @@ export function formatSeconds(total: number): string {
   return `${m}:${`${s}`.padStart(2, "0")}`;
 }
 
-export function computeHabitReps(maxReps: number): number {
-  return clamp(Math.floor(maxReps * 0.4), 3, 15);
+// Spec §4.3: base per-round reps = floor(max_reps × 0.4), bounded 3..15.
+export function baseRoundReps(maxReps: number): number {
+  return clamp(Math.floor(maxReps * 0.4), 3, REP_CAP);
 }
 
 export function latestMaxTest(
@@ -96,6 +103,36 @@ export function latestMaxTest(
 ): MaxTestEntry | null {
   const tests = data.maxTests.filter((t) => t.level === level);
   return tests.length > 0 ? (tests[tests.length - 1] ?? null) : null;
+}
+
+export function currentMaxReps(data: AppData): number {
+  return latestMaxTest(data, data.level)?.reps ?? 5;
+}
+
+// Per-round rep target for a given day. Starts at the base and rises by 1 every
+// RAMP_STEP_DAYS days since the last max test for the current level, capped at
+// REP_CAP and at the user's tested max. A fresh max test resets the ramp from a
+// new (higher) base. Deterministic in the date, so the Plan tab can show the
+// whole climbing schedule ahead of time.
+export function sessionRoundReps(
+  data: AppData,
+  onDate: string = dateKey(),
+): number {
+  const latest = latestMaxTest(data, data.level);
+  const maxReps = latest?.reps ?? 5;
+  const base = baseRoundReps(maxReps);
+  const dayIndex = latest ? Math.max(0, daysBetween(latest.date, onDate)) : 0;
+  const step = Math.floor(dayIndex / RAMP_STEP_DAYS);
+  const cap = Math.max(3, Math.min(REP_CAP, maxReps));
+  return clamp(base + step, 3, cap);
+}
+
+// Total reps prescribed for a day's session (all rounds).
+export function sessionTotalReps(
+  data: AppData,
+  onDate: string = dateKey(),
+): number {
+  return SESSION_ROUNDS * sessionRoundReps(data, onDate);
 }
 
 export function daysSinceMaxTest(data: AppData): number | null {
@@ -119,39 +156,6 @@ export function sessionOn(
   key: string,
 ): SessionEntry | undefined {
   return sessions.find((s) => s.date === key);
-}
-
-export function evaluateHabitWeek(
-  data: AppData,
-  now: Date = new Date(),
-): Partial<AppData> | null {
-  const currentWeek = weekStartKey(now);
-  if (data.lastHabitWeekEvaluated === currentWeek) return null;
-  const prevStart = addDays(currentWeek, -7);
-  const prevSessions = data.sessions.filter(
-    (s) => s.date >= prevStart && s.date < currentWeek,
-  );
-  let reps = data.roundRepsHabit;
-  if (prevSessions.length > 0) {
-    const rated = prevSessions.filter((s) => s.rpe !== null);
-    const avg =
-      rated.length > 0
-        ? rated.reduce((a, s) => a + (s.rpe ?? 0), 0) / rated.length
-        : 5;
-    if (prevSessions.length >= 5 && avg <= 7) {
-      reps = Math.min(15, reps + 1);
-    } else if (avg >= 8 || prevSessions.length < 3) {
-      reps = Math.max(3, reps - 1);
-    }
-  }
-  return { roundRepsHabit: reps, lastHabitWeekEvaluated: currentWeek };
-}
-
-export function canLevelUp(data: AppData): boolean {
-  if (data.level >= 3) return false;
-  const threshold = LEVEL_UP_REPS[data.level] ?? 8;
-  const latest = latestMaxTest(data, data.level);
-  return latest !== null && latest.reps >= threshold;
 }
 
 export function currentStreak(
@@ -202,8 +206,6 @@ export function createInitialData(params: {
     settings: defaultSettings(goalReps),
     maxTests: [{ date: dateKey(), level, reps: maxReps }],
     sessions: [],
-    roundRepsHabit: computeHabitReps(maxReps),
-    lastHabitWeekEvaluated: weekStartKey(),
     needsMaxTest: false,
   };
 }
@@ -274,9 +276,10 @@ function sanitizeReminder(
   };
 }
 
-// Accepts current backups as well as legacy ones from the strength-track era:
-// unknown fields (roundRepsStrength, strengthDays, track, …) are dropped and
-// former strength sessions are kept as plain sessions so history survives.
+// Accepts current backups as well as legacy ones from earlier app versions:
+// unknown fields (roundRepsHabit, lastHabitWeekEvaluated, strength-track data,
+// per-session `track`, …) are dropped, and old sessions are kept as plain
+// history so streaks and stats survive.
 export function sanitizeImport(raw: unknown): AppData | null {
   if (typeof raw !== "object" || raw === null) return null;
   const o = raw as Record<string, unknown>;
@@ -350,8 +353,6 @@ export function sanitizeImport(raw: unknown): AppData | null {
     acknowledged: boolOr(ho.acknowledged, true),
   };
 
-  const fallbackMax = latestTestReps(maxTests, level) ?? 5;
-
   return {
     onboardingComplete: true,
     level,
@@ -359,25 +360,8 @@ export function sanitizeImport(raw: unknown): AppData | null {
     settings,
     maxTests,
     sessions,
-    roundRepsHabit: clamp(
-      Math.floor(numOr(o.roundRepsHabit, computeHabitReps(fallbackMax))),
-      3,
-      15,
-    ),
-    lastHabitWeekEvaluated:
-      typeof o.lastHabitWeekEvaluated === "string" &&
-      /^\d{4}-\d{2}-\d{2}$/.test(o.lastHabitWeekEvaluated)
-        ? o.lastHabitWeekEvaluated
-        : weekStartKey(),
     needsMaxTest: boolOr(o.needsMaxTest, false),
   };
-}
-
-function latestTestReps(tests: MaxTestEntry[], level: Level): number | null {
-  const filtered = tests.filter((t) => t.level === level);
-  return filtered.length > 0
-    ? (filtered[filtered.length - 1]?.reps ?? null)
-    : null;
 }
 
 export function newId(): string {

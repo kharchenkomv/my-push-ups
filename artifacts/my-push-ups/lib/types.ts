@@ -48,7 +48,5 @@ export interface AppData {
   settings: Settings;
   maxTests: MaxTestEntry[];
   sessions: SessionEntry[];
-  roundRepsHabit: number;
-  lastHabitWeekEvaluated: string;
   needsMaxTest: boolean;
 }

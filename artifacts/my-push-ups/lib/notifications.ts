@@ -38,7 +38,7 @@ export async function rescheduleReminders(settings: Settings): Promise<void> {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "Morning push-ups",
-          body: "Your quick habit set is ready. It only takes a minute.",
+          body: "Your daily session is ready — 5 quick rounds, about 5 minutes.",
         },
         trigger: {
           type: weekly,

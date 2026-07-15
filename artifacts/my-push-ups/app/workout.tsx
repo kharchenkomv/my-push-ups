@@ -25,11 +25,13 @@ import { Stepper } from "@/app/onboarding";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
-  HABIT_REST_SECONDS,
+  SESSION_REST_SECONDS,
+  SESSION_ROUNDS,
   LEVEL_INFO,
   dateKey,
   formatSeconds,
   recentPainFlags,
+  sessionRoundReps,
 } from "@/lib/training";
 import type { PainFlag } from "@/lib/types";
 
@@ -117,20 +119,18 @@ function SessionFlow() {
   const haptic = useHaptic();
   const sounds = useRestSounds();
 
-  const target = data?.roundRepsHabit ?? 3;
-  const initialRounds = 1;
-  const restDuration = HABIT_REST_SECONDS;
+  const target = data ? sessionRoundReps(data) : 3;
+  const totalRounds = SESSION_ROUNDS;
+  const restDuration = SESSION_REST_SECONDS;
 
   const [phase, setPhase] = useState<Phase>("work");
   const [round, setRound] = useState<number>(1);
-  const [totalRounds, setTotalRounds] = useState<number>(initialRounds);
   const [reps, setReps] = useState<number[]>([]);
   const [restLeft, setRestLeft] = useState<number>(restDuration);
   const [rpe, setRpe] = useState<number | null>(null);
   const [pains, setPains] = useState<PainFlag[]>([]);
   const [saving, setSaving] = useState<boolean>(false);
   const [adjusting, setAdjusting] = useState<boolean>(false);
-  const canAddRound = useRef<boolean>(true);
   // Wall-clock deadline for the current rest. JS timers freeze while the app
   // is backgrounded or the screen is locked, so the countdown must be derived
   // from Date.now(), not from accumulated ticks.
@@ -194,12 +194,6 @@ function SessionFlow() {
     }
   };
 
-  const addHabitRound = () => {
-    canAddRound.current = false;
-    setTotalRounds(2);
-    startRest();
-  };
-
   const skipRest = () => {
     restEndsAt.current = Date.now();
     setRestLeft(0);
@@ -252,7 +246,7 @@ function SessionFlow() {
             <Feather name="x" size={24} color="#FFFFFF" />
           </Pressable>
           <Text style={styles.navTitle}>
-            {phase === "rest" ? "Resting" : `Habit · Round ${round} of ${totalRounds}`}
+            {phase === "rest" ? "Resting" : `Round ${round} of ${totalRounds}`}
           </Text>
           <View style={{ width: 28 }} />
         </View>
@@ -405,7 +399,7 @@ function SessionFlow() {
                 <Feather name="check" size={32} color={colors.success} />
               </View>
               <Text style={[styles.doneTitle, { color: colors.foreground }]}>
-                Habit round complete
+                Exercise complete
               </Text>
               <Text style={[styles.doneSub, { color: colors.mutedForeground }]}>
                 {reps.length} {reps.length === 1 ? "round" : "rounds"} ·{" "}
@@ -476,17 +470,6 @@ function SessionFlow() {
                   </View>
                 ))}
               </Card>
-            ) : null}
-
-            {canAddRound.current && reps.length === 1 ? (
-              <View style={styles.addRoundWrap}>
-                <PrimaryButton
-                  label="Add another round"
-                  variant="secondary"
-                  onPress={addHabitRound}
-                  testID="btn-add-round"
-                />
-              </View>
             ) : null}
 
             <View style={{ alignItems: "center", marginTop: 16 }}>

@@ -8,15 +8,21 @@ import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
   DAY_LABELS,
-  HABIT_REST_SECONDS,
   LEVEL_INFO,
+  RAMP_STEP_DAYS,
+  REP_CAP,
   RETEST_DAYS,
+  SESSION_REST_SECONDS,
+  SESSION_ROUNDS,
   addDays,
+  baseRoundReps,
+  currentMaxReps,
   dateKey,
   daysSinceMaxTest,
   formatSeconds,
   isHabitDay,
   sessionOn,
+  sessionRoundReps,
   weekStartKey,
 } from "@/lib/training";
 
@@ -34,8 +40,10 @@ export default function PlanScreen() {
   const retestIn =
     daysSince === null ? 0 : Math.max(0, RETEST_DAYS - daysSince);
 
-  const progressionMessage =
-    "Do your habit set 5+ days a week at effort 7 or less and your reps go up by 1 each week.";
+  const todayReps = sessionRoundReps(data);
+  const base = baseRoundReps(currentMaxReps(data));
+  const cap = Math.max(3, Math.min(REP_CAP, currentMaxReps(data)));
+  const progressionMessage = `Each round starts at ${base} reps and climbs by 1 every ${RAMP_STEP_DAYS} days, up to ${cap}. A max re-test then resets the ramp from a higher base.`;
 
   return (
     <ScrollView
@@ -95,7 +103,9 @@ export default function PlanScreen() {
               </Text>
               <View style={styles.dayInfo}>
                 <Text style={[styles.dayType, { color: colors.foreground }]}>
-                  {t ? `Habit · 1 × ${data.roundRepsHabit}` : "Rest"}
+                  {t
+                    ? `${SESSION_ROUNDS} × ${sessionRoundReps(data, key)}`
+                    : "Rest"}
                 </Text>
               </View>
               {status === "done" ? (
@@ -114,15 +124,15 @@ export default function PlanScreen() {
         })}
       </Card>
 
-      <SectionTitle>Current prescription</SectionTitle>
+      <SectionTitle>Today's prescription</SectionTitle>
       <Card>
         <PrescriptionRow
-          label="Daily habit set"
-          value={`1 round of ${data.roundRepsHabit}`}
+          label="Session"
+          value={`${SESSION_ROUNDS} rounds of ${todayReps}`}
         />
         <PrescriptionRow
-          label="Rest before a bonus round"
-          value={formatSeconds(HABIT_REST_SECONDS)}
+          label="Rest between rounds"
+          value={formatSeconds(SESSION_REST_SECONDS)}
         />
         <PrescriptionRow
           label="Goal"
@@ -158,8 +168,8 @@ export default function PlanScreen() {
         <View style={styles.msgRow}>
           <Feather name="shield" size={18} color={colors.success} />
           <Text style={[styles.msgText, { color: colors.foreground }]}>
-            Sets stay submaximal — never train to failure. If a week feels hard
-            (effort 8+) we scale back automatically.
+            Sets stay submaximal — stop each round when your form breaks, never
+            train to absolute failure.
           </Text>
         </View>
       </Card>

@@ -31,13 +31,13 @@ An offline, no-login push-up trainer mobile app: a tiny daily habit set, auto-pr
 
 - All training logic is pure functions in `lib/training.ts` so it's testable and UI-independent
 - One session per calendar day; habit days set by `habitDaysPerWeek` (5 = weekdays, 6 = all but Sunday, 7 = daily)
-- Progression (weekly): +1 rep after 5+ sessions at avg RPE≤7; −1 when avg RPE≥8 or fewer than 3 sessions; level-up offered when the latest max test hits 8+; re-test prompt after 21 days
-- Habit reps = clamp(floor(max×0.4), 3, 15); optional bonus round with a fixed 45 s rest
+- One track only (habit). A daily session is 5 rounds (`SESSION_ROUNDS`) with 60 s rest between rounds. Per-round reps ramp deterministically: base = floor(max×0.4) clamped 3–15, then +1 every 3 days (`RAMP_STEP_DAYS`) since the last max test, capped at 15 and at the tested max. A max re-test (prompted after 21 days) resets the ramp from a new base. No weekly RPE adjustment, no strength track, no auto level-up (level is changed only via Settings override).
+- The whole plan is derived from the latest max test + calendar date — nothing rep-related is stored in AppData; `sessionRoundReps(data, date)` computes it on the fly, so the Plan tab shows the climbing day-by-day schedule.
 - Import/export is plain JSON via share sheet / paste; imports are sanitized field-by-field before persisting
 
 ## Product
 
-- 4 tabs: Today (action card, week strip, goal progress), Plan (schedule + prescription), Progress (streak, heatmap, milestones, test history), Settings (habit days, goal, level override, reminder, export/import/reset, health screening)
+- 4 tabs: Today (today's 5-round exercise card, streak/best/days-since stats), Plan (ramping week schedule + today's prescription + progression explainer), Progress (streak, push-ups-over-time chart, heatmap, milestones, test history), Settings (habit days, goal, level override, reminder, export/import/reset, health screening)
 - Onboarding includes a physician warning when any health question is answered yes
 - Coral #E44F3A on off-white #F6F4EF, full dark mode, haptics on round/rest transitions
 

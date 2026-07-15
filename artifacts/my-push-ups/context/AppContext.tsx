@@ -11,9 +11,7 @@ import React, {
 import { AppState } from "react-native";
 
 import {
-  computeHabitReps,
   createInitialData,
-  evaluateHabitWeek,
   latestMaxTest,
   dateKey,
   newId,
@@ -43,7 +41,6 @@ interface AppContextValue {
   updateSettings: (patch: Partial<Settings>) => Promise<Settings | null>;
   setLevel: (level: Level) => Promise<void>;
   setHealth: (health: HealthAnswers) => Promise<void>;
-  levelUp: () => Promise<void>;
   resetAll: () => Promise<void>;
   importData: (json: string) => Promise<boolean>;
   exportJson: () => string;
@@ -75,14 +72,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         if (raw) {
           // Sanitize on load: migrates data written by older app versions
-          // (strength-track fields, pre-`days` reminder configs) to the
-          // current shape.
+          // (roundRepsHabit / weekly-eval fields, strength-track data, pre-`days`
+          // reminder configs) to the current shape.
           const parsed = sanitizeImport(JSON.parse(raw));
           if (parsed) {
-            const weekly = evaluateHabitWeek(parsed);
-            const next = weekly ? { ...parsed, ...weekly } : parsed;
-            setData(next);
-            if (weekly) enqueueWrite(next);
+            setData(parsed);
+            // Persist the migration if the on-disk shape changed.
+            if (JSON.stringify(parsed) !== raw) enqueueWrite(parsed);
           }
         }
       } catch {
@@ -96,7 +92,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [enqueueWrite]);
 
-  // Re-check the week boundary when the app returns to foreground.
+  // Bump a tick when the app returns to foreground so date-derived screens
+  // (today's rep target ramps with the calendar) recompute after midnight.
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") setWakeTick((t) => t + 1);
@@ -123,18 +120,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [enqueueWrite],
   );
 
-  // Apply weekly habit adjustment whenever the week rolls over while running.
-  useEffect(() => {
-    if (!data) return;
-    const weekly = evaluateHabitWeek(data);
-    if (weekly) {
-      mutate((prev) => {
-        const w = evaluateHabitWeek(prev);
-        return w ? { ...prev, ...w } : prev;
-      });
-    }
-  }, [data, wakeTick, mutate]);
-
   const completeOnboarding = useCallback(
     async (params: {
       level: Level;
@@ -157,7 +142,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ...prev.maxTests,
           { date: dateKey(), level: prev.level, reps },
         ],
-        roundRepsHabit: computeHabitReps(reps),
         needsMaxTest: false,
       }));
     },
@@ -167,12 +151,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const completeSession = useCallback(
     async (entry: Omit<SessionEntry, "id">) => {
       await mutate((prev) => {
-        const weekly = evaluateHabitWeek(prev);
-        const base = weekly ? { ...prev, ...weekly } : prev;
         const session: SessionEntry = { ...entry, id: newId() };
         return {
-          ...base,
-          sessions: [...base.sessions, session],
+          ...prev,
+          sessions: [...prev.sessions, session],
         };
       });
     },
@@ -194,12 +176,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (level: Level) => {
       await mutate((prev) => {
         const test = latestMaxTest({ ...prev, level }, level);
-        return {
-          ...prev,
-          level,
-          needsMaxTest: !test,
-          ...(test ? { roundRepsHabit: computeHabitReps(test.reps) } : {}),
-        };
+        return { ...prev, level, needsMaxTest: !test };
       });
     },
     [mutate],
@@ -211,17 +188,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
     [mutate],
   );
-
-  const levelUp = useCallback(async () => {
-    await mutate((prev) => {
-      if (prev.level >= 3) return prev;
-      return {
-        ...prev,
-        level: (prev.level + 1) as Level,
-        needsMaxTest: true,
-      };
-    });
-  }, [mutate]);
 
   const resetAll = useCallback(async () => {
     setData(null);
@@ -262,21 +228,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateSettings,
       setLevel,
       setHealth,
-      levelUp,
       resetAll,
       importData,
       exportJson,
     }),
+    // wakeTick is intentionally a dep: it changes the value identity on
+    // foreground so consumers re-render and pick up the new day's rep target.
     [
       data,
       loading,
+      wakeTick,
       completeOnboarding,
       recordMaxTest,
       completeSession,
       updateSettings,
       setLevel,
       setHealth,
-      levelUp,
       resetAll,
       importData,
       exportJson,

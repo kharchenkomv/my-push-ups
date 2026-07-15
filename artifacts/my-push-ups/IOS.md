@@ -6,7 +6,7 @@ Reviewed 2026-07-10 against Expo SDK 54 / React Native 0.81.5 (new architecture 
 
 Offline, no-login push-up trainer. Single Expo app (`artifacts/my-push-ups`) in a pnpm
 monorepo; no backend, no env vars, no secrets. All state lives in AsyncStorage under the
-key `mpu:data:v1`. The training engine is pure functions in `lib/training.ts` (54 tests).
+key `mpu:data:v1`. The training engine is pure functions in `lib/training.ts` (41 tests).
 
 ## iOS-specific implementation (already in place)
 
@@ -80,7 +80,8 @@ Fixed 2026-07-10 (previously listed as gaps):
 
 - **Rest timer** is now anchored to a `Date.now()` deadline (`restEndsAt` in
   `app/workout.tsx`), so backgrounding or screen lock no longer stalls the countdown;
-  `useKeepAwake()` keeps the display on during workouts.
+  `expo-keep-awake` (via `activateKeepAwakeAsync`/`deactivateKeepAwake`, native-only —
+  the web Wake Lock API throws in embedded contexts) keeps the display on during workouts.
 - **Unused native modules removed**: `expo-location` and `expo-image-picker` are out of
   `package.json` — no orphaned Location/Photos API references in the binary.
 - **Foreground notification handler**: `initNotificationHandler()` in
