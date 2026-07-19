@@ -220,6 +220,15 @@ export function sessionOn(
 
 // --- Weekly progression (spec §2.1) -------------------------------------------
 
+// Spec's "at least 6 of 7 sessions" assumes a fixed 7-day week. The app also
+// offers 5- and 6-day habit schedules (spec doesn't address these), so the
+// session-count bar scales with the chosen schedule instead of staying a flat
+// 6 — otherwise a 5- or 6-day plan could never clear it. round(7 × 0.85) = 6,
+// so the default 7-day case is unchanged.
+export function requiredSessionsForProgress(habitDaysPerWeek: number): number {
+  return Math.max(1, Math.round(habitDaysPerWeek * 0.85));
+}
+
 export function evaluateWeek(
   data: AppData,
   now: Date = new Date(),
@@ -241,9 +250,14 @@ export function evaluateWeek(
     const allRoundsDone = prev.every(
       (s) => s.roundsCompleted >= s.roundsPlanned,
     );
-    if (prev.length >= 6 && avg <= 7 && allRoundsDone) {
+    // Pain/recovery feedback must influence progression (spec §2.1/§3.1): a
+    // single flagged session withholds the increase; repeated pain forces a
+    // reduction, same as a rough RPE week.
+    const painSessions = prev.filter((s) => s.painFlags.length > 0).length;
+    const required = requiredSessionsForProgress(data.settings.habitDaysPerWeek);
+    if (prev.length >= required && avg <= 7 && allRoundsDone && painSessions === 0) {
       target = Math.min(cap, target + 1); // +1 rep, conservative
-    } else if (avg >= 8 || !allRoundsDone) {
+    } else if (avg >= 8 || !allRoundsDone || painSessions >= 2) {
       target = Math.max(MIN_DAILY_TARGET, target - 1);
     }
     // otherwise hold
@@ -310,7 +324,7 @@ export function createInitialData(params: {
   };
 }
 
-const PAIN_VALUES = ["wrist", "shoulder", "chest"];
+const PAIN_VALUES = ["wrist", "shoulder", "elbow", "chest"];
 
 function isValidMaxTest(t: unknown): t is MaxTestEntry {
   if (typeof t !== "object" || t === null) return false;

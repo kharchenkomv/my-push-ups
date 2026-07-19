@@ -8,6 +8,7 @@ import {
   dailyTargetFor,
   dateKey,
   daysBetween,
+  defaultSettings,
   evaluateWeek,
   formatSeconds,
   isHabitDay,
@@ -15,6 +16,7 @@ import {
   levelCap,
   maxTestDue,
   planForWeekday,
+  requiredSessionsForProgress,
   roundReps,
   sessionTargetReps,
   sessionTypeForWeekday,
@@ -248,6 +250,61 @@ describe("evaluateWeek (spec §2.1)", () => {
       ],
     });
     assert.equal(evaluateWeek(data, monday)?.dailyTarget, 8); // no prev-week data
+  });
+
+  it("scales the session-count bar to a 5-day habit plan (spec gap)", () => {
+    // 4 of 5 possible sessions — round(5 * 0.85) = 4, so this now qualifies;
+    // under the old flat "≥6" rule a 5-day plan could never progress at all.
+    const data = weekData({
+      dailyTarget: 8,
+      settings: { ...defaultSettings(50), habitDaysPerWeek: 5 },
+      sessions: prevWeek.slice(0, 4).map((d) => session({ date: d, rpe: 6 })),
+    });
+    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 9);
+  });
+
+  it("scales the session-count bar to a 6-day habit plan (spec gap)", () => {
+    // round(6 * 0.85) = 5, one less than the flat "≥6" rule required.
+    const data = weekData({
+      dailyTarget: 8,
+      settings: { ...defaultSettings(50), habitDaysPerWeek: 6 },
+      sessions: prevWeek.slice(0, 5).map((d) => session({ date: d, rpe: 6 })),
+    });
+    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 9);
+  });
+
+  it("withholds the increase when any session flagged pain (spec §2.1/§3.1)", () => {
+    const data = weekData({
+      dailyTarget: 8,
+      sessions: [
+        ...prevWeek.slice(0, 5).map((d) => session({ date: d, rpe: 6 })),
+        session({ date: prevWeek[6], rpe: 6, painFlags: ["wrist"] }),
+      ],
+    });
+    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 8); // held, not +1
+  });
+
+  it("drops 1 when pain is flagged more than once", () => {
+    const data = weekData({
+      dailyTarget: 8,
+      sessions: prevWeek
+        .slice(0, 6)
+        .map((d, i) =>
+          session({ date: d, rpe: 6, painFlags: i < 2 ? ["shoulder"] : [] }),
+        ),
+    });
+    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 7);
+  });
+});
+
+describe("requiredSessionsForProgress (habit-days scaling)", () => {
+  it("keeps the spec's 7-day default at 6", () => {
+    assert.equal(requiredSessionsForProgress(7), 6);
+  });
+
+  it("scales down for shorter habit-day plans instead of staying fixed", () => {
+    assert.equal(requiredSessionsForProgress(6), 5);
+    assert.equal(requiredSessionsForProgress(5), 4);
   });
 });
 

@@ -1,5 +1,5 @@
 export type Level = 0 | 1 | 2 | 3;
-export type PainFlag = "wrist" | "shoulder" | "chest";
+export type PainFlag = "wrist" | "shoulder" | "elbow" | "chest";
 
 export interface HealthAnswers {
   cardio: boolean;

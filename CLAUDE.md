@@ -26,4 +26,4 @@ Same pattern as the other migrated Replit projects — the lockfile pins native 
 ## Verified working (2026-07-09)
 
 - `pnpm install` clean, Expo web bundles 1491 modules, page serves "My Push Ups" on :21401
-- All training-engine tests pass (46 as of 2026-07-15)
+- All training-engine tests pass (53 as of 2026-07-19)

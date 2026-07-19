@@ -143,6 +143,16 @@ describe("import of malformed backups", () => {
     assert.equal(out.settings.restSeconds, 60);
   });
 
+  it("keeps a valid elbow pain flag and drops unknown ones (spec §3.1)", () => {
+    const backup = validBackup();
+    const out = sanitizeImport({
+      ...backup,
+      sessions: [{ ...backup.sessions[0], painFlags: ["elbow", "made-up"] }],
+    });
+    assert.ok(out);
+    assert.deepEqual(out.sessions[0]?.painFlags, ["elbow"]);
+  });
+
   it("migrates a strength-era / ramp-era backup, dropping unknown fields", () => {
     const legacy = {
       level: 2,

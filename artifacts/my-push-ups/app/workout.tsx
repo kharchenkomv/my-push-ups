@@ -41,6 +41,7 @@ const MAX_REPS = 99;
 const PAIN_OPTIONS: { key: PainFlag; label: string }[] = [
   { key: "wrist", label: "Wrist" },
   { key: "shoulder", label: "Shoulder" },
+  { key: "elbow", label: "Elbow" },
   { key: "chest", label: "Chest" },
 ];
 
