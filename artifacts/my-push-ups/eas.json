@@ -13,7 +13,8 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "kharchenko.mikhail@icloud.com"
+        "appleId": "kharchenko.mikhail@icloud.com",
+        "ascAppId": "6792493460"
       }
     }
   }

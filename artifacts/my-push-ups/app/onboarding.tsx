@@ -80,7 +80,7 @@ export default function OnboardingScreen() {
               <Path d="M47 17 L50 33" stroke="white" strokeWidth="4.5" strokeLinecap="round" />
             </Svg>
           </View>
-          <Text style={styles.heroTitle}>My Push Ups</Text>
+          <Text style={styles.heroTitle}>My Trainer</Text>
           <Text style={styles.heroSub}>
             A safe, science-based path from your first wall push-up to 100 reps unbroken.
           </Text>

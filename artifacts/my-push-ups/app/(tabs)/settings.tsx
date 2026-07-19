@@ -261,7 +261,7 @@ export default function SettingsScreen() {
       </Card>
 
       <Text style={[styles.about, { color: colors.mutedForeground }]}>
-        My Push Ups · fully offline · your data never leaves this device
+        My Trainer · fully offline · your data never leaves this device
       </Text>
 
       <Modal
