@@ -3,7 +3,14 @@ import React from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Card, SectionTitle } from "@/components/UI";
+import {
+  Card,
+  Kicker,
+  ScreenTitle,
+  SectionTitle,
+  StatCard,
+  font,
+} from "@/components/UI";
 import { RepsChart } from "@/components/RepsChart";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -45,6 +52,10 @@ export default function ProgressScreen() {
   }));
 
   const recentTests = [...data.maxTests].reverse().slice(0, 6);
+  const daysDone = Array.from({ length: 28 }, (_, i) =>
+    sessionDays.has(addDays(start, i)),
+  );
+  const doneCount = daysDone.filter(Boolean).length;
 
   return (
     <ScrollView
@@ -54,57 +65,16 @@ export default function ProgressScreen() {
         { paddingTop: topPad, paddingBottom: 130 },
       ]}
     >
-      <Text style={[styles.title, { color: colors.foreground }]}>
-        Progress
-      </Text>
+      <ScreenTitle subtitle="Consistency is the artwork">Progress</ScreenTitle>
 
-      <View style={styles.statsRow}>
-        <Card style={[styles.statCard, { borderColor: colors.border }]}>
-          <View style={[styles.streakRing, { borderColor: colors.primary }]}>
-            <Text style={[styles.streakValue, { color: colors.foreground }]}>
-              {streak}
-            </Text>
-          </View>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-            day streak
-          </Text>
-        </Card>
-        <View style={styles.statCol}>
-          <Card style={[styles.smallStat, { borderColor: colors.border }]}>
-            <Text style={[styles.smallValue, { color: colors.foreground }]}>
-              {totalSessions}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-              sessions
-            </Text>
-          </Card>
-          <Card style={[styles.smallStat, { borderColor: colors.border }]}>
-            <Text style={[styles.smallValue, { color: colors.foreground }]}>
-              {totalReps}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-              total reps
-            </Text>
-          </Card>
-        </View>
-        <View style={styles.statCol}>
-          <Card style={[styles.smallStat, { borderColor: colors.border }]}>
-            <Text style={[styles.smallValue, { color: colors.foreground }]}>
-              {bestCurrent}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-              best max
-            </Text>
-          </Card>
-          <Card style={[styles.smallStat, { borderColor: colors.border }]}>
-            <Text style={[styles.smallValue, { color: colors.foreground }]}>
-              {LEVEL_INFO[data.level]?.short}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-              level
-            </Text>
-          </Card>
-        </View>
+      <View style={styles.statRow}>
+        <StatCard label="Day streak" value={streak} accent={colors.primary} />
+        <StatCard label="Sessions" value={totalSessions} />
+        <StatCard label="Best max" value={bestCurrent} />
+      </View>
+      <View style={[styles.statRow, styles.statRowGap]}>
+        <StatCard label="Total reps" value={totalReps} />
+        <StatCard label="Level" value={LEVEL_INFO[data.level]?.short ?? "—"} />
       </View>
 
       <SectionTitle>Push-ups over time</SectionTitle>
@@ -115,55 +85,41 @@ export default function ProgressScreen() {
           </Text>
         ) : (
           <>
-            <View style={styles.chartHead}>
-              <Text style={[styles.chartTotal, { color: colors.foreground }]}>
-                {totalReps}
-              </Text>
-              <Text
-                style={[styles.chartTotalLabel, { color: colors.mutedForeground }]}
-              >
-                total push-ups · {totalSessions}{" "}
-                {totalSessions === 1 ? "session" : "sessions"}
-              </Text>
+            <Kicker>
+              {totalReps} reps · {totalSessions}{" "}
+              {totalSessions === 1 ? "session" : "sessions"}
+            </Kicker>
+            <View style={styles.chartWrap}>
+              <RepsChart points={repsSeries} />
             </View>
-            <RepsChart points={repsSeries} />
           </>
         )}
       </Card>
 
-      <SectionTitle>Last 4 weeks</SectionTitle>
+      <SectionTitle>Last four weeks</SectionTitle>
       <Card>
-        <View style={styles.heatGrid}>
-          {Array.from({ length: 28 }, (_, i) => {
-            const key = addDays(start, i);
-            const done = sessionDays.has(key);
-            return (
-              <View
-                key={key}
-                style={[
-                  styles.heatCell,
-                  {
-                    backgroundColor: done ? colors.habit : colors.muted,
-                  },
-                ]}
-              />
-            );
-          })}
-        </View>
-        <View style={styles.legendRow}>
-          <View style={styles.legendItem}>
+        {/* Rows of quiet dots — days marked and days missed. */}
+        <View style={styles.dotGrid}>
+          {daysDone.map((done, i) => (
             <View
-              style={[styles.legendDot, { backgroundColor: colors.habit }]}
+              key={i}
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: done ? colors.primary : "transparent",
+                  borderColor: done ? colors.primary : colors.border,
+                },
+              ]}
             />
-            <Text style={[styles.legendText, { color: colors.mutedForeground }]}>
-              Habit set done
-            </Text>
-          </View>
+          ))}
         </View>
+        <Text style={[styles.dotLegend, { color: colors.mutedForeground }]}>
+          {doneCount} of 28 days trained
+        </Text>
       </Card>
 
       <SectionTitle>Milestones</SectionTitle>
-      <Card style={styles.milestoneCard}>
+      <Card style={styles.listCard}>
         {MILESTONES.map((m, i) => {
           const achieved = milestoneBase >= m;
           return (
@@ -172,33 +128,33 @@ export default function ProgressScreen() {
               style={[
                 styles.milestoneRow,
                 i < MILESTONES.length - 1
-                  ? { borderBottomColor: colors.border, borderBottomWidth: 1 }
+                  ? {
+                      borderBottomColor: colors.border,
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                    }
                   : null,
               ]}
             >
               <View
                 style={[
-                  styles.milestoneBadge,
+                  styles.milestoneMark,
                   {
-                    backgroundColor: achieved ? colors.success : colors.muted,
+                    backgroundColor: achieved ? colors.success : "transparent",
+                    borderColor: achieved ? colors.success : colors.border,
                   },
                 ]}
               >
                 {achieved ? (
-                  <Feather name="check" size={14} color="#FFFFFF" />
-                ) : (
-                  <Feather
-                    name="lock"
-                    size={12}
-                    color={colors.mutedForeground}
-                  />
-                )}
+                  <Feather name="check" size={11} color="#ffffff" />
+                ) : null}
               </View>
               <Text
                 style={[
                   styles.milestoneText,
                   {
-                    color: achieved ? colors.foreground : colors.mutedForeground,
+                    color: achieved
+                      ? colors.foreground
+                      : colors.mutedForeground,
                   },
                 ]}
               >
@@ -217,20 +173,23 @@ export default function ProgressScreen() {
           </Text>
         </Card>
       ) : (
-        <Card style={styles.milestoneCard}>
+        <Card style={styles.listCard}>
           {recentTests.map((t, i) => (
             <View
               key={`${t.date}-${i}`}
               style={[
                 styles.testRow,
                 i < recentTests.length - 1
-                  ? { borderBottomColor: colors.border, borderBottomWidth: 1 }
+                  ? {
+                      borderBottomColor: colors.border,
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                    }
                   : null,
               ]}
             >
-              <View>
+              <View style={styles.testInfo}>
                 <Text style={[styles.testReps, { color: colors.foreground }]}>
-                  {t.reps} reps
+                  {t.reps}
                 </Text>
                 <Text
                   style={[styles.testLevel, { color: colors.mutedForeground }]}
@@ -254,91 +213,69 @@ export default function ProgressScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
-  title: {
-    fontSize: 32,
-    fontFamily: "SpaceGrotesk_700Bold",
-    marginBottom: 16,
-  },
-  chartHead: { marginBottom: 8 },
-  chartTotal: { fontSize: 28, fontFamily: "SpaceGrotesk_700Bold" },
-  chartTotalLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: 2,
-  },
-  statsRow: { flexDirection: "row", gap: 12 },
-  statCard: {
-    flex: 1.2,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    borderWidth: 1,
-  },
-  statCol: { flex: 1, gap: 12 },
-  smallStat: { alignItems: "center", paddingVertical: 12, borderWidth: 1 },
-  streakRing: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    borderWidth: 5,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  streakValue: { fontSize: 28, fontFamily: "SpaceGrotesk_700Bold" },
-  smallValue: { fontSize: 22, fontFamily: "SpaceGrotesk_700Bold" },
-  statLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    marginTop: 2,
-  },
-  heatGrid: {
+
+  statRow: { flexDirection: "row", gap: 10 },
+  statRowGap: { marginTop: 10 },
+
+  chartWrap: { marginTop: 12 },
+
+  dotGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
-    justifyContent: "center",
+    gap: 10,
+    // Exactly 7 dots per row (7 * 22 + 6 * 10), so the 28 days read as four
+    // calendar weeks rather than wrapping into an orphaned last row.
+    width: 214,
+    alignSelf: "center",
   },
-  heatCell: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+  dot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
   },
-  legendRow: {
-    flexDirection: "row",
-    gap: 18,
+  dotLegend: {
+    fontSize: 11,
+    fontFamily: font.bodyMedium,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    textAlign: "center",
     marginTop: 16,
-    justifyContent: "center",
   },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  milestoneCard: { paddingVertical: 4 },
+
+  listCard: { paddingVertical: 4 },
+
   milestoneRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 12,
+    paddingVertical: 13,
   },
-  milestoneBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  milestoneMark: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  milestoneText: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  milestoneText: { fontSize: 15, fontFamily: font.body },
+
   emptyText: {
     fontSize: 14,
-    fontFamily: "Inter_400Regular",
+    lineHeight: 20,
+    fontFamily: font.body,
     textAlign: "center",
   },
+
   testRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 13,
   },
-  testReps: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  testLevel: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
-  testDate: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  testInfo: { flexDirection: "row", alignItems: "baseline", gap: 10 },
+  testReps: { fontSize: 22, fontFamily: font.display },
+  testLevel: { fontSize: 13, fontFamily: font.body },
+  testDate: { fontSize: 13, fontFamily: font.body },
 });

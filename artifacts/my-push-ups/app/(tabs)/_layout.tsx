@@ -55,8 +55,9 @@ function ClassicTabLayout() {
           ...(isWeb ? { height: 84 } : {}),
         },
         tabBarLabelStyle: {
-          fontFamily: "Inter_600SemiBold",
+          fontFamily: "Inter_500Medium",
           fontSize: 11,
+          letterSpacing: 0.3,
           marginTop: -4,
         },
         tabBarBackground: () =>

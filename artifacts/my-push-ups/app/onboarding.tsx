@@ -12,10 +12,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Circle, Path } from "react-native-svg";
-
-import { Chip, PrimaryButton } from "@/components/UI";
+import { PlankMark } from "@/components/PlankMark";
+import { Callout, Chip, Kicker, PrimaryButton, font } from "@/components/UI";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { LEVEL_INFO } from "@/lib/training";
@@ -24,6 +22,27 @@ import type { Level } from "@/lib/types";
 type Step = "welcome" | "setup" | "maxtest";
 
 const GOALS = [20, 30, 50, 100];
+
+/** The movement's atomic unit — a quiet row of days marked and days missed. */
+function DotRow({ count = 12, filled = 4 }: { count?: number; filled?: number }) {
+  const colors = useColors();
+  return (
+    <View style={styles.dotRow}>
+      {Array.from({ length: count }, (_, i) => (
+        <View
+          key={i}
+          style={[
+            styles.markDot,
+            {
+              backgroundColor: i < filled ? colors.primary : "transparent",
+              borderColor: i < filled ? colors.primary : colors.border,
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
 
 export default function OnboardingScreen() {
   const colors = useColors();
@@ -57,72 +76,76 @@ export default function OnboardingScreen() {
 
   if (step === "welcome") {
     return (
-      <LinearGradient
-        colors={["#1E3A8A", "#16255C", "#0F1840"]}
-        style={styles.root}
-      >
-        <View style={[styles.centerBlock, { paddingTop: topPad, paddingBottom: bottomPad, paddingHorizontal: 24 }]}>
-          <View style={styles.welcomeRing}>
-            <Svg width="96" height="96" viewBox="0 0 96 96" fill="none">
-              <Circle cx="48" cy="48" r="40" stroke="rgba(255,255,255,.35)" strokeWidth="7"/>
-              <Path d="M48 8 A40 40 0 0 1 85 60" stroke="#FF7A3D" strokeWidth="7" strokeLinecap="round"/>
-            </Svg>
-            <Svg style={styles.welcomePushup} width="52" height="36" viewBox="0 0 64 40" fill="none">
-              <Circle cx="54" cy="11" r="6" fill="white" />
-              <Path
-                d="M7 31 L44 17"
-                stroke="white"
-                strokeWidth="7"
-                strokeLinecap="round"
-              />
-              <Path d="M8 31 L4 36" stroke="white" strokeWidth="4" strokeLinecap="round" />
-              <Path d="M42 18 L45 34" stroke="white" strokeWidth="4.5" strokeLinecap="round" />
-              <Path d="M47 17 L50 33" stroke="white" strokeWidth="4.5" strokeLinecap="round" />
-            </Svg>
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.welcomeBlock,
+            { paddingTop: topPad, paddingBottom: bottomPad },
+          ]}
+        >
+          <View style={styles.mark}>
+            <PlankMark
+              size={88}
+              ink={colors.foreground}
+              tint={colors.primary}
+              track={colors.border}
+            />
           </View>
-          <Text style={styles.heroTitle}>My Trainer</Text>
-          <Text style={styles.heroSub}>
-            A safe, science-based path from your first wall push-up to 100 reps unbroken.
+
+          <Text style={[styles.heroTitle, { color: colors.foreground }]}>
+            My Trainer
           </Text>
-          <View style={styles.spacer} />
-          <View style={{width: '100%', maxWidth: 300}}>
+          <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>
+            A safe, science-based path from your first wall push-up to 100 reps
+            unbroken.
+          </Text>
+
+          <DotRow />
+
+          <View style={styles.welcomeAction}>
             <PrimaryButton
               label="Get started"
               onPress={() => setStep("setup")}
               testID="btn-get-started"
-              variant="secondary"
             />
           </View>
         </View>
-      </LinearGradient>
+      </View>
     );
   }
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <View style={[styles.navBar, { paddingTop: topPad, backgroundColor: colors.surface }]}>
+      <View
+        style={[
+          styles.navBar,
+          { paddingTop: topPad, borderBottomColor: colors.border },
+        ]}
+      >
         <Pressable
           onPress={() => setStep(step === "maxtest" ? "setup" : "welcome")}
           style={styles.navBack}
+          hitSlop={8}
         >
-          <Feather name="chevron-left" size={24} color={colors.primary} />
+          <Feather name="chevron-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.navTitle, { color: colors.foreground }]}>
           {step === "maxtest" ? "Max-rep test" : "Set up your plan"}
         </Text>
         <View style={{ width: 28 }} />
       </View>
+
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: bottomPad + 20 },
+          { paddingBottom: bottomPad + 24 },
           step === "maxtest" && styles.contentCenter,
         ]}
         keyboardShouldPersistTaps="handled"
       >
         {step === "setup" && (
           <View>
-            {/* Goal */}
+            <Kicker>Step one</Kicker>
             <Text style={[styles.sectionLabel, { color: colors.foreground }]}>
               What's your goal?
             </Text>
@@ -162,16 +185,16 @@ export default function OnboardingScreen() {
               }}
             />
 
-            {/* Health */}
-            <Text
-              style={[styles.sectionLabel, styles.sectionGap, { color: colors.foreground }]}
-            >
-              Quick health check
-            </Text>
-            <Text style={[styles.body, { color: colors.mutedForeground }]}>
-              Answer honestly — this keeps your plan safe.
-            </Text>
-            <View style={{ gap: 10, marginTop: 4 }}>
+            <View style={styles.sectionGap}>
+              <Kicker>Step two</Kicker>
+              <Text style={[styles.sectionLabel, { color: colors.foreground }]}>
+                Quick health check
+              </Text>
+              <Text style={[styles.body, { color: colors.mutedForeground }]}>
+                Answer honestly — this keeps your plan safe.
+              </Text>
+            </View>
+            <View style={styles.toggleStack}>
               <HealthToggle
                 label="Cardiovascular disease or uncontrolled hypertension?"
                 value={cardio}
@@ -189,25 +212,26 @@ export default function OnboardingScreen() {
               />
             </View>
             {anyHealthFlag ? (
-              <View style={[styles.warnCallout, { backgroundColor: colors.accent }]}>
-                <Feather name="alert-triangle" size={18} color={colors.warning} />
-                <Text style={[styles.warnCalloutText, { color: colors.foreground }]}>
-                  Consult a physician or qualified health professional before
-                  starting this program. This app is not a substitute for medical
-                  advice.
-                </Text>
-              </View>
+              <Callout
+                icon="alert-triangle"
+                tone={colors.warning}
+                style={styles.warnGap}
+              >
+                Consult a physician or qualified health professional before
+                starting this program. This app is not a substitute for medical
+                advice.
+              </Callout>
             ) : null}
 
-            {/* Level */}
-            <Text
-              style={[styles.sectionLabel, styles.sectionGap, { color: colors.foreground }]}
-            >
-              Can you do 8 full push-ups with good form?
-            </Text>
-            <Text style={[styles.body, { color: colors.mutedForeground }]}>
-              Chest to near floor, straight body line, full lockout.
-            </Text>
+            <View style={styles.sectionGap}>
+              <Kicker>Step three</Kicker>
+              <Text style={[styles.sectionLabel, { color: colors.foreground }]}>
+                Can you do 8 full push-ups with good form?
+              </Text>
+              <Text style={[styles.body, { color: colors.mutedForeground }]}>
+                Chest to near floor, straight body line, full lockout.
+              </Text>
+            </View>
             <View style={styles.optionList}>
               <OptionCard
                 label="Yes, easily — 8 or more"
@@ -235,30 +259,47 @@ export default function OnboardingScreen() {
               />
             </View>
 
-            <View style={styles.spacer} />
-            <PrimaryButton
-              label="Continue"
-              onPress={() => setStep("maxtest")}
-              disabled={level === null}
-              testID="btn-setup-continue"
-            />
+            <View style={styles.continueWrap}>
+              <PrimaryButton
+                label="Continue"
+                onPress={() => setStep("maxtest")}
+                disabled={level === null}
+                testID="btn-setup-continue"
+              />
+            </View>
           </View>
         )}
 
         {step === "maxtest" && (
           <View style={styles.centerCol}>
-            <Text style={[styles.body, { color: colors.mutedForeground, textAlign: "center", maxWidth: 300 }]}>
-              One set of {LEVEL_INFO[level ?? 1]?.name.toLowerCase()}. Stop the moment your form breaks — never push to absolute failure.
+            <Text
+              style={[
+                styles.body,
+                styles.maxTestIntro,
+                { color: colors.mutedForeground },
+              ]}
+            >
+              One set of {LEVEL_INFO[level ?? 1]?.name.toLowerCase()}. Stop the
+              moment your form breaks — never push to absolute failure.
             </Text>
+
             <View style={styles.tapCounter}>
-              <Text style={[styles.tapCounterValue, { color: colors.primary }]}>{maxReps}</Text>
-              <Text style={styles.tapCounterLabel}>reps so far</Text>
+              <Text style={[styles.tapCounterValue, { color: colors.foreground }]}>
+                {maxReps}
+              </Text>
+              <Text
+                style={[styles.tapCounterLabel, { color: colors.mutedForeground }]}
+              >
+                reps so far
+              </Text>
             </View>
-            <View style={{width: 220, gap: 16, marginTop: 32}}>
+
+            <View style={styles.maxTestActions}>
               <PrimaryButton
                 label="+1 rep"
-                onPress={() => setMaxReps(r => r + 1)}
-                variant="ghost"
+                icon="plus"
+                onPress={() => setMaxReps((r) => r + 1)}
+                variant="outline"
                 testID="btn-maxtest-plus"
               />
               <PrimaryButton
@@ -289,8 +330,9 @@ function HealthToggle({
       style={[
         styles.healthRow,
         {
-          backgroundColor: value ? colors.accent : colors.muted,
-          borderColor: value ? colors.warning : "transparent",
+          backgroundColor: colors.card,
+          borderColor: value ? colors.warning : colors.border,
+          borderRadius: colors.radius,
         },
       ]}
     >
@@ -300,8 +342,8 @@ function HealthToggle({
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ true: colors.primary, false: colors.border }}
-        thumbColor="#FFFFFF"
+        trackColor={{ true: colors.primary, false: colors.input }}
+        thumbColor="#ffffff"
       />
     </View>
   );
@@ -323,14 +365,30 @@ function OptionCard({
     <Pressable
       onPress={onPress}
       testID={testID}
-      style={[
+      style={({ pressed }) => [
         styles.optionCard,
-        { backgroundColor: colors.muted, borderColor: "transparent" },
-        selected && { backgroundColor: "rgba(30,58,138,0.1)", borderColor: colors.primary }
+        {
+          backgroundColor: selected ? colors.accent : colors.card,
+          borderColor: selected ? colors.primary : colors.border,
+          borderRadius: colors.radius,
+          opacity: pressed ? 0.85 : 1,
+        },
       ]}
     >
-      <Text style={[styles.optionText, { color: colors.foreground }]}>{label}</Text>
-      <Feather name="chevron-right" size={20} color={selected ? colors.primary : colors.mutedForeground} />
+      <Text style={[styles.optionText, { color: colors.foreground }]}>
+        {label}
+      </Text>
+      <View
+        style={[
+          styles.optionMark,
+          {
+            backgroundColor: selected ? colors.primary : "transparent",
+            borderColor: selected ? colors.primary : colors.border,
+          },
+        ]}
+      >
+        {selected ? <Feather name="check" size={11} color="#ffffff" /> : null}
+      </View>
     </Pressable>
   );
 }
@@ -351,20 +409,34 @@ export function Stepper({
     <View style={styles.stepperRow}>
       <Pressable
         onPress={() => onChange(value - step)}
-        style={[styles.stepperBtn, { backgroundColor: colors.muted }]}
+        style={({ pressed }) => [
+          styles.stepperBtn,
+          {
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            opacity: pressed ? 0.7 : 1,
+          },
+        ]}
         testID="stepper-minus"
       >
-        <Feather name="minus" size={22} color={colors.foreground} />
+        <Feather name="minus" size={20} color={colors.foreground} />
       </Pressable>
       <Text style={[styles.stepperValue, { color: colors.foreground }]}>
         {format ? format(value) : value}
       </Text>
       <Pressable
         onPress={() => onChange(value + step)}
-        style={[styles.stepperBtn, { backgroundColor: colors.muted }]}
+        style={({ pressed }) => [
+          styles.stepperBtn,
+          {
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            opacity: pressed ? 0.7 : 1,
+          },
+        ]}
         testID="stepper-plus"
       >
-        <Feather name="plus" size={22} color={colors.foreground} />
+        <Feather name="plus" size={20} color={colors.foreground} />
       </Pressable>
     </View>
   );
@@ -372,225 +444,161 @@ export function Stepper({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+
   navBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   navBack: {
-    width: 28, height: 28,
-    alignItems: "center", justifyContent: "center",
-  },
-  navTitle: {
-    fontFamily: "SpaceGrotesk_700Bold",
-    fontSize: 16,
-  },
-  content: { paddingHorizontal: 24, flexGrow: 1, paddingTop: 24 },
-  contentCenter: { alignItems: "center", justifyContent: "center" },
-  centerCol: { alignItems: "center", justifyContent: "center", flex: 1, width: '100%' },
-  centerBlock: { flex: 1, justifyContent: "center", alignItems: "center" },
-  
-  welcomeRing: {
-    width: 96,
-    height: 96,
+    width: 28,
+    height: 28,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
-    position: "relative",
   },
-  welcomePushup: {
-    position: "absolute",
+  navTitle: {
+    fontFamily: font.display,
+    fontSize: 18,
   },
+
+  content: { paddingHorizontal: 24, flexGrow: 1, paddingTop: 28 },
+  contentCenter: { alignItems: "center", justifyContent: "center" },
+  centerCol: {
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    width: "100%",
+  },
+
+  welcomeBlock: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  mark: { marginBottom: 28 },
   heroTitle: {
-    fontSize: 32,
-    fontFamily: "SpaceGrotesk_700Bold",
+    fontSize: 44,
+    lineHeight: 52,
+    fontFamily: font.display,
     textAlign: "center",
-    color: "#FFFFFF",
   },
   heroSub: {
     fontSize: 15,
-    fontFamily: "Inter_400Regular",
+    lineHeight: 23,
+    fontFamily: font.body,
     textAlign: "center",
-    marginTop: 12,
-    lineHeight: 22,
-    color: "rgba(255,255,255,0.75)",
-    maxWidth: 240,
+    marginTop: 14,
+    maxWidth: 280,
   },
-  
-  progressDots: { flexDirection: "row", gap: 8, marginBottom: 24 },
-  dot: { width: 22, height: 4, borderRadius: 2, backgroundColor: "#E4E7F0" },
-  dotActive: { },
-  dotDone: { },
-  
-  title: {
-    fontSize: 24,
-    fontFamily: "SpaceGrotesk_700Bold",
-    marginBottom: 8,
-    lineHeight: 30,
+  dotRow: {
+    flexDirection: "row",
+    gap: 7,
+    marginTop: 40,
   },
+  markDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  welcomeAction: {
+    width: "100%",
+    maxWidth: 300,
+    marginTop: 48,
+  },
+
   sectionLabel: {
-    fontSize: 20,
-    fontFamily: "SpaceGrotesk_700Bold",
+    fontSize: 24,
+    lineHeight: 31,
+    fontFamily: font.display,
+    marginTop: 8,
     marginBottom: 6,
-    lineHeight: 26,
   },
-  sectionGap: { marginTop: 32 },
+  sectionGap: { marginTop: 40 },
+  body: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: font.body,
+  },
+
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 16,
+  },
+  goalInput: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    fontSize: 16,
+    fontFamily: font.body,
+    marginTop: 12,
+  },
+
+  toggleStack: { gap: 10, marginTop: 16 },
   healthRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
     padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   healthLabel: {
     flex: 1,
     fontSize: 14,
-    fontFamily: "Inter_500Medium",
     lineHeight: 20,
+    fontFamily: font.body,
   },
-  warnCallout: {
-    flexDirection: "row",
-    gap: 12,
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 14,
-    alignItems: "flex-start",
-  },
-  warnCalloutText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-    lineHeight: 19,
-  },
-  body: {
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 22,
-    marginBottom: 12,
-    textAlign: "left",
-  },
-  spacer: { height: 32 },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  goalInput: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-    marginTop: 12,
-  },
-  
-  questionCard: {
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
-  },
-  questionText: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-    lineHeight: 21,
-  },
-  pillToggle: { flexDirection: "row", gap: 8 },
-  pill: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 9999,
-    borderWidth: 1,
-    alignItems: "center",
-  },
-  pillText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
-  
-  warnIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  
-  optionList: { gap: 12, marginTop: 12 },
+  warnGap: { marginTop: 14 },
+
+  optionList: { gap: 10, marginTop: 16 },
   optionCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
     padding: 16,
-    borderRadius: 12,
-    borderWidth: 1.5,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   optionText: {
+    flex: 1,
     fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
+    lineHeight: 21,
+    fontFamily: font.body,
   },
-  
-  resultEyebrow: {
-    fontSize: 12,
-    fontFamily: "Inter_700Bold",
-    color: "rgba(255,255,255,0.6)",
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-    marginBottom: 16,
-  },
-  levelBadge: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: "#FF7A3D",
+  optionMark: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
-    shadowColor: "#FF7A3D",
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
   },
-  levelBadgeText: {
-    fontFamily: "SpaceGrotesk_700Bold",
-    fontSize: 32,
-    color: "#FFFFFF",
-  },
-  levelTrack: { flexDirection: "row", gap: 8, marginVertical: 32 },
-  levelTrackStep: {
-    width: 40, height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    alignItems: "center", justifyContent: "center",
-  },
-  levelTrackStepDone: { backgroundColor: "rgba(255,255,255,0.22)" },
-  levelTrackStepCurrent: { backgroundColor: "#FF7A3D" },
-  levelTrackText: {
-    fontSize: 12,
-    fontFamily: "Inter_700Bold",
-    color: "rgba(255,255,255,0.5)",
-  },
-  levelTrackTextDone: { color: "#FFFFFF" },
-  
-  tapCounter: { alignItems: "center", marginVertical: 32 },
+
+  continueWrap: { marginTop: 40 },
+
+  maxTestIntro: { textAlign: "center", maxWidth: 300 },
+  tapCounter: { alignItems: "center", marginVertical: 40 },
   tapCounterValue: {
-    fontFamily: "SpaceGrotesk_700Bold",
-    fontSize: 80,
-    lineHeight: 84,
+    fontFamily: font.display,
+    fontSize: 96,
+    lineHeight: 110,
   },
   tapCounterLabel: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: "#6B6E85",
+    fontSize: 11,
+    fontFamily: font.bodyMedium,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
-  
+  maxTestActions: { width: "100%", maxWidth: 280, gap: 12 },
+
   stepperRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -599,34 +607,18 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   stepperBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
   },
   stepperValue: {
-    fontSize: 44,
-    fontFamily: "SpaceGrotesk_700Bold",
-    minWidth: 100,
+    fontSize: 52,
+    lineHeight: 62,
+    fontFamily: font.display,
+    minWidth: 110,
     textAlign: "center",
-    fontVariant: ["tabular-nums"],
-  },
-  previewCard: { marginBottom: 16 },
-  previewLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_700Bold",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  previewValue: {
-    fontSize: 24,
-    fontFamily: "SpaceGrotesk_700Bold",
-    marginTop: 4,
-  },
-  previewNote: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    marginTop: 4,
   },
 });

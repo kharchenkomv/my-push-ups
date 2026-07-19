@@ -1,4 +1,4 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -11,7 +11,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Card, PrimaryButton, SectionTitle } from "@/components/UI";
+import {
+  Callout,
+  Card,
+  Kicker,
+  PrimaryButton,
+  StatCard,
+  font,
+} from "@/components/UI";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
@@ -29,6 +36,12 @@ import {
   sessionOn,
 } from "@/lib/training";
 
+function greeting(hour: number): string {
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function TodayScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -38,8 +51,9 @@ export default function TodayScreen() {
   if (!data) return null;
 
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
+  const now = new Date();
   const today = dateKey();
-  const weekday = new Date().getDay();
+  const weekday = now.getDay();
   const habitDay = isHabitDay(data.settings, weekday);
   const doneToday = sessionOn(data.sessions, today);
   const testDue = data.needsMaxTest || maxTestDue(data);
@@ -47,6 +61,12 @@ export default function TodayScreen() {
   const best = bestMax(data, data.level);
   const daysSince = daysSinceMaxTest(data);
   const plan = planForDate(data, today);
+
+  const dateLabel = now.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 
   return (
     <ScrollView
@@ -56,35 +76,39 @@ export default function TodayScreen() {
         { paddingTop: topPad, paddingBottom: 130 },
       ]}
     >
-      <View style={styles.homeHero}>
-        <View>
-          <Text style={[styles.homeGreeting, { color: colors.mutedForeground }]}>
-            Good morning
+      <View style={styles.hero}>
+        <View style={styles.heroText}>
+          <Kicker>{dateLabel}</Kicker>
+          <Text style={[styles.heroTitle, { color: colors.foreground }]}>
+            {greeting(now.getHours())}
           </Text>
-          <Text style={[styles.homeTitle, { color: colors.foreground }]}>
-            Level {data.level}
-          </Text>
-        </View>
-        <View style={[styles.streakChip, { backgroundColor: colors.accent }]}>
-          <Ionicons name="flame" size={14} color={colors.accentForeground} />
-          <Text style={[styles.streakChipText, { color: colors.accentForeground }]}>
-            {streak}
+          <Text style={[styles.heroMeta, { color: colors.mutedForeground }]}>
+            {LEVEL_INFO[data.level]?.name}
           </Text>
         </View>
+        {streak > 0 ? (
+          <View style={styles.streakWrap}>
+            <Text style={[styles.streakValue, { color: colors.primary }]}>
+              {streak}
+            </Text>
+            <Text style={[styles.streakLabel, { color: colors.mutedForeground }]}>
+              day{streak === 1 ? "" : "s"}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {data.needsMaxTest ? (
-        <Card style={[styles.trackCard, { borderLeftColor: colors.primary }]}>
-          <View style={styles.trackCardHead}>
-            <Text style={[styles.trackTag, { color: colors.primary }]}>CALIBRATION NEEDED</Text>
-          </View>
-          <Text style={[styles.trackCardTitle, { color: colors.foreground }]}>
+        <Card>
+          <Kicker color={colors.primary}>Calibration needed</Kicker>
+          <Text style={[styles.cardTitle, { color: colors.foreground }]}>
             Take a max test
           </Text>
-          <Text style={[styles.trackCardMeta, { color: colors.mutedForeground }]}>
-            One set of {LEVEL_INFO[data.level]?.name.toLowerCase()} to size your new plan.
+          <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
+            One set of {LEVEL_INFO[data.level]?.name.toLowerCase()} to size your
+            new plan.
           </Text>
-          <View style={styles.cardBtn}>
+          <View style={styles.cardAction}>
             <PrimaryButton
               label="Start max test"
               onPress={() =>
@@ -95,18 +119,16 @@ export default function TodayScreen() {
           </View>
         </Card>
       ) : doneToday ? (
-        <Card style={[styles.trackCard, { borderLeftColor: colors.success }]}>
+        <Card>
           <View style={styles.doneRow}>
-            <View
-              style={[styles.doneBadge, { backgroundColor: "rgba(31,138,76,0.15)" }]}
-            >
-              <Feather name="check" size={24} color={colors.success} />
+            <View style={[styles.doneMark, { borderColor: colors.success }]}>
+              <Feather name="check" size={18} color={colors.success} />
             </View>
-            <View style={styles.doneTextWrap}>
-              <Text style={[styles.trackCardTitle, { color: colors.foreground }]}>
+            <View style={styles.doneText}>
+              <Text style={[styles.cardTitle, { color: colors.foreground }]}>
                 Done for today
               </Text>
-              <Text style={[styles.trackCardMeta, { color: colors.mutedForeground }]}>
+              <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
                 {doneToday.repsPerRound.length}{" "}
                 {doneToday.repsPerRound.length === 1 ? "round" : "rounds"} ·{" "}
                 {doneToday.repsPerRound.reduce((a, b) => a + b, 0)} reps
@@ -115,23 +137,22 @@ export default function TodayScreen() {
           </View>
         </Card>
       ) : habitDay ? (
-        <Card style={[
-          styles.trackCard,
-          { borderLeftColor: colors.habit, backgroundColor: colors.habitSoft }
-        ]}>
-          <View style={styles.trackCardHead}>
-            <Text style={[styles.trackTag, { color: colors.secondary }]}>
+        <Card>
+          <View style={styles.cardHead}>
+            <Kicker color={colors.primary}>
               {SESSION_TYPE_LABEL[plan.type]} session
-            </Text>
-            <Text style={styles.trackCardTime}>~5 min</Text>
+            </Kicker>
+            <Kicker>~5 min</Kicker>
           </View>
-          <Text style={[styles.trackCardTitle, { color: colors.foreground }]}>
+          <Text style={[styles.rounds, { color: colors.foreground }]}>
             {plan.rounds.join(" · ")}
           </Text>
-          <Text style={[styles.trackCardMeta, { color: colors.mutedForeground }]}>
-            {SESSION_ROUNDS} rounds · {plan.total} reps · {LEVEL_INFO[data.level]?.name} · rest {formatSeconds(data.settings.restSeconds)}
+          <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
+            {SESSION_ROUNDS} rounds · {plan.total} reps ·{" "}
+            {LEVEL_INFO[data.level]?.name} · rest{" "}
+            {formatSeconds(data.settings.restSeconds)}
           </Text>
-          <View style={styles.cardBtn}>
+          <View style={styles.cardAction}>
             <PrimaryButton
               label="Start exercise"
               onPress={() =>
@@ -142,14 +163,12 @@ export default function TodayScreen() {
           </View>
         </Card>
       ) : (
-        <Card style={[styles.trackCard, { borderLeftColor: colors.rest }]}>
-          <View style={styles.trackCardHead}>
-            <Text style={[styles.trackTag, { color: colors.rest }]}>REST DAY</Text>
-          </View>
-          <Text style={[styles.trackCardTitle, { color: colors.foreground }]}>
+        <Card>
+          <Kicker color={colors.rest}>Rest day</Kicker>
+          <Text style={[styles.cardTitle, { color: colors.foreground }]}>
             Recovery time
           </Text>
-          <Text style={[styles.trackCardMeta, { color: colors.mutedForeground }]}>
+          <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
             Take it easy. See you tomorrow.
           </Text>
         </Card>
@@ -161,152 +180,110 @@ export default function TodayScreen() {
             router.push({ pathname: "/workout", params: { track: "maxtest" } })
           }
           testID="btn-retest-due"
-          style={{ marginTop: 16 }}
+          style={styles.retest}
         >
-          <View style={[styles.infoCallout, { backgroundColor: colors.warning + "20" }]}>
-            <View style={styles.retestRow}>
-              <Feather name="refresh-cw" size={18} color={colors.warning} />
-              <Text style={[styles.retestText, { color: colors.warning }]}>
-                Re-test due — tap to recalibrate
-              </Text>
-            </View>
-          </View>
+          <Callout icon="refresh-cw" tone={colors.warning}>
+            Re-test due — tap to recalibrate your plan.
+          </Callout>
         </Pressable>
       ) : null}
 
-      <View style={styles.miniStatRow}>
-        <View style={[styles.miniStat, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.miniStatValue, { color: colors.primary }]}>{streak}</Text>
-          <Text style={[styles.miniStatLabel, { color: colors.mutedForeground }]}>Day streak</Text>
-        </View>
-        <View style={[styles.miniStat, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.miniStatValue, { color: colors.primary }]}>{best}</Text>
-          <Text style={[styles.miniStatLabel, { color: colors.mutedForeground }]}>Best max</Text>
-        </View>
-        <View style={[styles.miniStat, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.miniStatValue, { color: colors.primary }]}>{daysSince ?? "—"}</Text>
-          <Text style={[styles.miniStatLabel, { color: colors.mutedForeground }]}>Days since test</Text>
-        </View>
+      <View style={styles.statRow}>
+        <StatCard label="Day streak" value={streak} />
+        <StatCard label="Best max" value={best} />
+        <StatCard label="Since test" value={daysSince ?? "—"} />
       </View>
 
-      <View style={[styles.infoCallout, { backgroundColor: colors.muted, marginTop: 16 }]}>
-        <Text style={[styles.infoCalloutText, { color: colors.mutedForeground }]}>
-          <Text style={{ fontFamily: "Inter_700Bold" }}>If it hurts:</Text> try fists or push-up handles, raise the incline, or reduce reps/rounds today. Never train through pain.
-        </Text>
-      </View>
+      <Callout icon="alert-circle" style={styles.safety}>
+        If it hurts: try fists or push-up handles, raise the incline, or reduce
+        reps today. Never train through pain.
+      </Callout>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
-  
-  homeHero: {
+
+  hero: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 24,
+    gap: 16,
+    marginBottom: 28,
   },
-  homeGreeting: {
+  heroText: { flex: 1 },
+  heroTitle: {
+    fontSize: 34,
+    lineHeight: 42,
+    fontFamily: font.display,
+    marginTop: 6,
+  },
+  heroMeta: {
     fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: font.body,
+    marginTop: 2,
   },
-  homeTitle: {
-    fontSize: 24,
-    fontFamily: "SpaceGrotesk_700Bold",
-    marginTop: 4,
-  },
-  streakChip: {
-    flexDirection: "row",
+  streakWrap: {
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 9999,
+    paddingTop: 18,
   },
-  streakChipText: {
-    fontSize: 14,
-    fontFamily: "SpaceGrotesk_700Bold",
+  streakValue: {
+    fontSize: 34,
+    lineHeight: 40,
+    fontFamily: font.display,
   },
-  
-  trackCard: {
-    borderRadius: 16,
-    padding: 20,
-    borderLeftWidth: 4,
-    marginBottom: 16,
-  },
-  trackCardHead: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  trackTag: {
-    fontSize: 12,
-    fontFamily: "Inter_700Bold",
+  streakLabel: {
+    fontSize: 10,
+    fontFamily: font.bodyMedium,
+    letterSpacing: 0.8,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
-  trackCardTime: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    color: "#A7A9BC",
+
+  cardHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
-  trackCardTitle: {
-    fontSize: 20,
-    fontFamily: "SpaceGrotesk_700Bold",
+  cardTitle: {
+    fontSize: 22,
+    lineHeight: 28,
+    fontFamily: font.display,
+    marginTop: 8,
   },
-  trackCardMeta: {
+  rounds: {
+    fontSize: 28,
+    lineHeight: 36,
+    fontFamily: font.display,
+    marginTop: 10,
+  },
+  cardBody: {
     fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    marginTop: 4,
+    lineHeight: 20,
+    fontFamily: font.body,
+    marginTop: 6,
   },
-  cardBtn: { marginTop: 16 },
-  
-  doneRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  doneBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  cardAction: { marginTop: 20 },
+
+  doneRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  doneMark: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  doneTextWrap: { flex: 1 },
-  
-  miniStatRow: {
+  doneText: { flex: 1 },
+
+  retest: { marginTop: 16 },
+
+  statRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
     marginTop: 24,
   },
-  miniStat: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    alignItems: "center",
-  },
-  miniStatValue: {
-    fontSize: 24,
-    fontFamily: "SpaceGrotesk_700Bold",
-  },
-  miniStatLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: 4,
-  },
 
-  infoCallout: {
-    padding: 16,
-    borderRadius: 12,
-  },
-  infoCalloutText: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: "Inter_400Regular",
-  },
-  
-  retestRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  retestText: { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  safety: { marginTop: 24 },
 });

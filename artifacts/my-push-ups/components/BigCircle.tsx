@@ -2,10 +2,12 @@ import React, { useRef } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 
+import { font } from "@/components/UI";
 import { useColors } from "@/hooks/useColors";
 
-const SIZE = 240;
-const STROKE = 14;
+const SIZE = 248;
+// Thin ring: the number is the subject, the ring is the frame around it.
+const STROKE = 6;
 
 export function BigCircle({
   mode,
@@ -29,7 +31,7 @@ export function BigCircle({
 
   const pressIn = () => {
     Animated.spring(scale, {
-      toValue: 0.94,
+      toValue: 0.96,
       useNativeDriver: true,
       speed: 30,
     }).start();
@@ -44,59 +46,67 @@ export function BigCircle({
 
   const r = (SIZE - STROKE) / 2;
   const c = 2 * Math.PI * r;
-  
-  if (mode === "rest") {
-    const offset = c * (1 - Math.min(1, Math.max(0, progress)));
-    const strokeColor = color || colors.rest;
+  const isRest = mode === "rest";
+  const strokeColor = color ?? (isRest ? colors.rest : colors.primary);
+  const offset = c * (1 - Math.min(1, Math.max(0, progress)));
+
+  const ring = (
+    <Svg width={SIZE} height={SIZE}>
+      <Circle
+        cx={SIZE / 2}
+        cy={SIZE / 2}
+        r={r}
+        stroke={colors.border}
+        strokeWidth={STROKE}
+        fill="none"
+      />
+      <Circle
+        cx={SIZE / 2}
+        cy={SIZE / 2}
+        r={r}
+        stroke={strokeColor}
+        strokeWidth={STROKE}
+        fill="none"
+        strokeDasharray={`${c}`}
+        // Work mode shows a complete ring — the round is the whole of it.
+        strokeDashoffset={isRest ? offset : 0}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+      />
+    </Svg>
+  );
+
+  const center = (
+    <View style={styles.center}>
+      <Text
+        style={[
+          isRest ? styles.restValue : styles.workValue,
+          { color: colors.foreground },
+        ]}
+        allowFontScaling={false}
+      >
+        {value}
+      </Text>
+      {sublabel ? (
+        <Text style={[styles.sublabel, { color: colors.mutedForeground }]}>
+          {sublabel}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  if (isRest) {
     return (
       <View
         style={styles.wrap}
         accessibilityLabel={accessibilityLabel}
         testID="rest-ring"
       >
-        <Svg width={SIZE} height={SIZE}>
-          <Circle
-            cx={SIZE / 2}
-            cy={SIZE / 2}
-            r={r}
-            stroke="rgba(255,255,255,0.14)"
-            strokeWidth={STROKE}
-            fill="none"
-          />
-          <Circle
-            cx={SIZE / 2}
-            cy={SIZE / 2}
-            r={r}
-            stroke={strokeColor}
-            strokeWidth={STROKE}
-            fill="none"
-            strokeDasharray={`${c}`}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
-          />
-        </Svg>
-        <View style={styles.center}>
-          {/* The workout screen always sits on a dark gradient, so text must be
-              light regardless of the app's light/dark theme. */}
-          <Text
-            style={[styles.restValue, { color: "#FFFFFF" }]}
-            allowFontScaling={false}
-          >
-            {value}
-          </Text>
-          {sublabel ? (
-            <Text style={[styles.sublabel, { color: "rgba(255,255,255,0.55)", textTransform: "uppercase", letterSpacing: 1 }]}>
-              {sublabel}
-            </Text>
-          ) : null}
-        </View>
+        {ring}
+        {center}
       </View>
     );
   }
-
-  const offset = c * (1 - Math.min(1, Math.max(0, progress)));
-  const strokeColor = color || colors.habit;
 
   return (
     <Pressable
@@ -107,52 +117,9 @@ export function BigCircle({
       accessibilityLabel={accessibilityLabel}
       testID="work-circle"
     >
-      <Animated.View
-        style={[
-          styles.wrap,
-          { transform: [{ scale }] },
-        ]}
-      >
-        <Svg width={SIZE} height={SIZE}>
-          <Circle
-            cx={SIZE / 2}
-            cy={SIZE / 2}
-            r={r}
-            stroke="rgba(255,255,255,0.14)"
-            strokeWidth={STROKE}
-            fill="none"
-          />
-          <Circle
-            cx={SIZE / 2}
-            cy={SIZE / 2}
-            r={r}
-            stroke={strokeColor}
-            strokeWidth={STROKE}
-            fill="none"
-            strokeDasharray={`${c}`}
-            strokeDashoffset={0}
-            strokeLinecap="round"
-            transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
-          />
-        </Svg>
-        <View style={styles.center}>
-          <Text
-            style={[styles.workValue, { color: colors.primaryForeground }]}
-            allowFontScaling={false}
-          >
-            {value}
-          </Text>
-          {sublabel ? (
-            <Text
-              style={[
-                styles.sublabel,
-                { color: "rgba(255,255,255,0.55)", textTransform: "uppercase", letterSpacing: 1 },
-              ]}
-            >
-              {sublabel}
-            </Text>
-          ) : null}
-        </View>
+      <Animated.View style={[styles.wrap, { transform: [{ scale }] }]}>
+        {ring}
+        {center}
       </Animated.View>
     </Pressable>
   );
@@ -170,17 +137,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   workValue: {
-    fontSize: 72,
-    fontFamily: "SpaceGrotesk_700Bold",
+    fontSize: 88,
+    lineHeight: 100,
+    fontFamily: font.display,
   },
   restValue: {
-    fontSize: 56,
-    fontFamily: "SpaceGrotesk_700Bold",
-    fontVariant: ["tabular-nums"],
+    fontSize: 60,
+    lineHeight: 70,
+    fontFamily: font.display,
+    // Serif digits are proportional; a fixed box stops the countdown jittering.
+    width: 170,
+    textAlign: "center",
   },
   sublabel: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: 0,
+    fontSize: 11,
+    fontFamily: font.bodyMedium,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    marginTop: 2,
   },
 });

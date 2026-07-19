@@ -17,10 +17,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 
 import { BigCircle } from "@/components/BigCircle";
-import { Card, PrimaryButton } from "@/components/UI";
+import { Callout, Card, Kicker, PrimaryButton, font } from "@/components/UI";
 import { Stepper } from "@/app/onboarding";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -109,6 +108,44 @@ function useHaptic() {
       }
     },
   };
+}
+
+/** Shared top bar for the workout flows: close on the left, quiet title. */
+function WorkoutBar({
+  title,
+  onClose,
+  topPad,
+  closeIcon = "x",
+  testID,
+}: {
+  title: string;
+  onClose: () => void;
+  topPad: number;
+  closeIcon?: "x" | "chevron-left";
+  testID?: string;
+}) {
+  const colors = useColors();
+  return (
+    <View
+      style={[
+        styles.navBar,
+        { paddingTop: topPad, borderBottomColor: colors.border },
+      ]}
+    >
+      <Pressable
+        onPress={onClose}
+        style={styles.navBack}
+        hitSlop={8}
+        testID={testID}
+      >
+        <Feather name={closeIcon} size={22} color={colors.foreground} />
+      </Pressable>
+      <Text style={[styles.navTitle, { color: colors.mutedForeground }]}>
+        {title}
+      </Text>
+      <View style={{ width: 28 }} />
+    </View>
+  );
 }
 
 function SessionFlow() {
@@ -237,68 +274,58 @@ function SessionFlow() {
     router.back();
   };
 
-  const gradientColors = phase === "summary" 
-    ? [colors.background, colors.background] as [string, string]
-    : ["#10132B", "#0A0C1E"] as [string, string];
-
   return (
-    <LinearGradient colors={gradientColors} style={styles.root}>
-      {phase !== "summary" && (
-        <View style={[styles.navBar, { paddingTop: topPad }]}>
-          <Pressable onPress={exit} style={styles.navBack} testID="btn-close-workout">
-            <Feather name="x" size={24} color="#FFFFFF" />
-          </Pressable>
-          <Text style={styles.navTitle}>
-            {phase === "rest" ? "Resting" : `Round ${round} of ${totalRounds}`}
-          </Text>
-          <View style={{ width: 28 }} />
-        </View>
-      )}
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      {phase !== "summary" ? (
+        <WorkoutBar
+          title={
+            phase === "rest" ? "Resting" : `Round ${round} of ${totalRounds}`
+          }
+          onClose={exit}
+          topPad={topPad}
+          testID="btn-close-workout"
+        />
+      ) : null}
 
       {phase === "work" && (
         <View style={styles.body}>
           <View style={styles.centerWrap}>
             {showPainBanner ? (
-              <View style={[styles.banner, { backgroundColor: colors.accent }]}>
-                <Feather
-                  name="alert-circle"
-                  size={18}
-                  color={colors.accentForeground}
-                />
-                <Text
-                  style={[styles.bannerText, { color: colors.accentForeground }]}
-                >
-                  You flagged pain recently. Consider fists, handles, or a higher
-                  incline today.
-                </Text>
-              </View>
+              <Callout
+                icon="alert-circle"
+                tone={colors.warning}
+                style={styles.banner}
+              >
+                You flagged pain recently. Consider fists, handles, or a higher
+                incline today.
+              </Callout>
             ) : null}
-            <Text style={styles.sessionLevelTag}>
+
+            <Kicker>
               {plan ? `${SESSION_TYPE_LABEL[plan.type]} · ` : ""}
               {LEVEL_INFO[data.level]?.name}
-            </Text>
+            </Kicker>
 
-            <View style={{ marginVertical: 40 }}>
+            <View style={styles.circleWrap}>
               <BigCircle
                 mode="work"
                 value={`${currentTarget}`}
                 sublabel="reps"
                 onPress={completeRound}
                 accessibilityLabel={`Complete round, ${currentTarget} push-ups`}
-                color={colors.habit}
               />
             </View>
-            
-            <Text style={styles.sessionHint}>
+
+            <Text style={[styles.hint, { color: colors.mutedForeground }]}>
               Tap the circle when you've completed all reps
             </Text>
           </View>
-          
+
           <View style={[styles.footer, { paddingBottom: bottomPad }]}>
             {reps.length > 0 ? (
               <PrimaryButton
                 label="Finish early"
-                variant="ghost-light"
+                variant="outline"
                 onPress={finishEarly}
                 testID="btn-finish-early"
               />
@@ -310,23 +337,21 @@ function SessionFlow() {
       {phase === "rest" && (
         <View style={styles.body}>
           <View style={styles.centerWrap}>
-            <Text style={styles.sessionLevelTag}>
-              Nice work — round complete
-            </Text>
-            
-            <View style={{ marginVertical: 40 }}>
+            <Kicker>Round complete</Kicker>
+
+            <View style={styles.circleWrap}>
               <BigCircle
                 mode="rest"
                 value={formatSeconds(restLeft)}
                 sublabel="rest"
                 progress={restLeft / restDuration}
                 accessibilityLabel={`Rest, ${restLeft} seconds remaining`}
-                color={colors.rest}
               />
             </View>
-            
-            <Text style={styles.sessionHint}>
-              Next: Round {round + 1} of {totalRounds} · {rounds[round] ?? 0} reps
+
+            <Text style={[styles.hint, { color: colors.mutedForeground }]}>
+              Next: round {round + 1} of {totalRounds} · {rounds[round] ?? 0}{" "}
+              reps
             </Text>
 
             {reps.length > 0 ? (
@@ -335,18 +360,20 @@ function SessionFlow() {
                   onPress={() => adjustRep(reps.length - 1, -1)}
                   disabled={(reps[reps.length - 1] ?? 0) <= 0}
                   style={[
-                    styles.restAdjustBtn,
+                    styles.roundBtn,
                     {
+                      borderColor: colors.border,
+                      backgroundColor: colors.card,
                       opacity: (reps[reps.length - 1] ?? 0) <= 0 ? 0.4 : 1,
                     },
                   ]}
                   accessibilityLabel="Decrease reps for last round"
                   testID="btn-adjust-minus"
                 >
-                  <Feather name="minus" size={20} color="#FFFFFF" />
+                  <Feather name="minus" size={18} color={colors.foreground} />
                 </Pressable>
                 <Text
-                  style={styles.restAdjustText}
+                  style={[styles.restAdjustText, { color: colors.mutedForeground }]}
                   testID="text-adjust-reps"
                 >
                   {reps[reps.length - 1]} reps recorded
@@ -355,15 +382,18 @@ function SessionFlow() {
                   onPress={() => adjustRep(reps.length - 1, 1)}
                   disabled={(reps[reps.length - 1] ?? 0) >= MAX_REPS}
                   style={[
-                    styles.restAdjustBtn,
+                    styles.roundBtn,
                     {
-                      opacity: (reps[reps.length - 1] ?? 0) >= MAX_REPS ? 0.4 : 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.card,
+                      opacity:
+                        (reps[reps.length - 1] ?? 0) >= MAX_REPS ? 0.4 : 1,
                     },
                   ]}
                   accessibilityLabel="Increase reps for last round"
                   testID="btn-adjust-plus"
                 >
-                  <Feather name="plus" size={20} color="#FFFFFF" />
+                  <Feather name="plus" size={18} color={colors.foreground} />
                 </Pressable>
               </View>
             ) : null}
@@ -372,7 +402,7 @@ function SessionFlow() {
           <View style={[styles.footer, { paddingBottom: bottomPad }]}>
             <PrimaryButton
               label="Skip rest"
-              variant="primary"
+              variant="secondary"
               onPress={skipRest}
               testID="btn-skip-rest"
             />
@@ -381,14 +411,15 @@ function SessionFlow() {
       )}
 
       {phase === "summary" && (
-        <View style={styles.summaryRoot}>
+        <View style={styles.root}>
           <View style={[styles.summaryHeader, { paddingTop: topPad }]}>
             <View />
             <Pressable
               onPress={() => router.back()}
-              style={[styles.navBack, { backgroundColor: colors.muted }]}
+              style={styles.navBack}
+              hitSlop={8}
             >
-              <Feather name="x" size={20} color={colors.foreground} />
+              <Feather name="x" size={22} color={colors.foreground} />
             </Pressable>
           </View>
 
@@ -399,8 +430,10 @@ function SessionFlow() {
             ]}
           >
             <View style={styles.summaryCenter}>
-              <View style={[styles.successBadge, { backgroundColor: "rgba(31,138,76,0.15)" }]}>
-                <Feather name="check" size={32} color={colors.success} />
+              <View
+                style={[styles.successMark, { borderColor: colors.success }]}
+              >
+                <Feather name="check" size={22} color={colors.success} />
               </View>
               <Text style={[styles.doneTitle, { color: colors.foreground }]}>
                 Exercise complete
@@ -429,7 +462,10 @@ function SessionFlow() {
                 {reps.map((r, i) => (
                   <View key={i} style={styles.adjustRoundRow}>
                     <Text
-                      style={[styles.adjustRoundLabel, { color: colors.foreground }]}
+                      style={[
+                        styles.adjustRoundLabel,
+                        { color: colors.mutedForeground },
+                      ]}
                     >
                       Round {i + 1}
                     </Text>
@@ -438,16 +474,16 @@ function SessionFlow() {
                         onPress={() => adjustRep(i, -1)}
                         disabled={r <= 0}
                         style={[
-                          styles.adjustBtn,
+                          styles.smallRoundBtn,
                           {
-                            backgroundColor: colors.muted,
+                            borderColor: colors.border,
                             opacity: r <= 0 ? 0.4 : 1,
                           },
                         ]}
                         accessibilityLabel={`Decrease reps for round ${i + 1}`}
                         testID={`btn-adjust-minus-${i + 1}`}
                       >
-                        <Feather name="minus" size={18} color={colors.foreground} />
+                        <Feather name="minus" size={16} color={colors.foreground} />
                       </Pressable>
                       <Text
                         style={[styles.adjustValue, { color: colors.foreground }]}
@@ -459,16 +495,16 @@ function SessionFlow() {
                         onPress={() => adjustRep(i, 1)}
                         disabled={r >= MAX_REPS}
                         style={[
-                          styles.adjustBtn,
+                          styles.smallRoundBtn,
                           {
-                            backgroundColor: colors.muted,
+                            borderColor: colors.border,
                             opacity: r >= MAX_REPS ? 0.4 : 1,
                           },
                         ]}
                         accessibilityLabel={`Increase reps for round ${i + 1}`}
                         testID={`btn-adjust-plus-${i + 1}`}
                       >
-                        <Feather name="plus" size={18} color={colors.foreground} />
+                        <Feather name="plus" size={16} color={colors.foreground} />
                       </Pressable>
                     </View>
                   </View>
@@ -476,11 +512,10 @@ function SessionFlow() {
               </Card>
             ) : null}
 
-            <View style={{ alignItems: "center", marginTop: 16 }}>
-              <Text style={[styles.rpeTitle, { color: colors.foreground }]}>
+            <Card style={styles.summaryCard}>
+              <Text style={[styles.summaryLabel, { color: colors.foreground }]}>
                 How hard did that feel?
               </Text>
-              
               <View style={styles.rpeScale}>
                 {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                   <Pressable
@@ -489,9 +524,9 @@ function SessionFlow() {
                     style={[
                       styles.rpeDot,
                       {
-                        backgroundColor: rpe === n ? colors.primary : colors.card,
+                        backgroundColor:
+                          rpe === n ? colors.primary : "transparent",
                         borderColor: rpe === n ? colors.primary : colors.border,
-                        borderWidth: 1,
                       },
                     ]}
                     testID={`rpe-${n}`}
@@ -500,7 +535,10 @@ function SessionFlow() {
                       style={[
                         styles.rpeDotText,
                         {
-                          color: rpe === n ? colors.primaryForeground : colors.mutedForeground,
+                          color:
+                            rpe === n
+                              ? colors.primaryForeground
+                              : colors.mutedForeground,
                         },
                       ]}
                     >
@@ -510,10 +548,18 @@ function SessionFlow() {
                 ))}
               </View>
               <View style={styles.rpeCaptionRow}>
-                <Text style={styles.rpeCaption}>Easy</Text>
-                <Text style={styles.rpeCaption}>Max effort</Text>
+                <Text
+                  style={[styles.rpeCaption, { color: colors.mutedForeground }]}
+                >
+                  Easy
+                </Text>
+                <Text
+                  style={[styles.rpeCaption, { color: colors.mutedForeground }]}
+                >
+                  Max effort
+                </Text>
               </View>
-            </View>
+            </Card>
 
             <Card style={styles.summaryCard}>
               <Text style={[styles.summaryLabel, { color: colors.foreground }]}>
@@ -536,9 +582,12 @@ function SessionFlow() {
                         styles.painChip,
                         {
                           backgroundColor: active
-                            ? "rgba(255,122,61,0.15)"
-                            : colors.card,
-                          borderColor: active ? colors.secondary : colors.border,
+                            ? colors.strengthSoft
+                            : "transparent",
+                          borderColor: active
+                            ? colors.destructive
+                            : colors.border,
+                          borderRadius: colors.radius - 4,
                         },
                       ]}
                       testID={`pain-${p.key}`}
@@ -548,8 +597,8 @@ function SessionFlow() {
                           styles.painText,
                           {
                             color: active
-                              ? colors.secondary
-                              : colors.foreground,
+                              ? colors.destructive
+                              : colors.mutedForeground,
                           },
                         ]}
                       >
@@ -560,9 +609,7 @@ function SessionFlow() {
                 })}
               </View>
               {pains.length > 0 ? (
-                <Text
-                  style={[styles.painNote, { color: colors.mutedForeground }]}
-                >
+                <Text style={[styles.painNote, { color: colors.mutedForeground }]}>
                   Try fists or push-up handles for wrists, or a higher incline.
                   We'll go easier if this continues.
                 </Text>
@@ -580,7 +627,7 @@ function SessionFlow() {
           </ScrollView>
         </View>
       )}
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -608,46 +655,49 @@ function MaxTestFlow() {
   };
 
   return (
-    <View style={[styles.summaryRoot, { backgroundColor: colors.background }]}>
-      <View style={[styles.navBarClassic, { paddingTop: topPad }]}>
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.navBackClassic}
-          testID="btn-close-maxtest"
-        >
-          <Feather name="chevron-left" size={24} color={colors.primary} />
-        </Pressable>
-        <Text style={[styles.navTitleClassic, { color: colors.foreground }]}>
-          Max test
-        </Text>
-        <View style={{ width: 28 }} />
-      </View>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <WorkoutBar
+        title="Max test"
+        onClose={() => router.back()}
+        topPad={topPad}
+        closeIcon="chevron-left"
+        testID="btn-close-maxtest"
+      />
 
       <ScrollView
         contentContainerStyle={[
           styles.summaryContent,
+          styles.maxTestContent,
           { paddingBottom: bottomPad + 12 },
         ]}
       >
         {phase === "intro" ? (
-          <View style={{ alignItems: "center", marginTop: 24 }}>
+          <View style={styles.maxTestBlock}>
             <Text style={[styles.introBody, { color: colors.mutedForeground }]}>
-              One set of {LEVEL_INFO[data.level]?.name.toLowerCase()}. Stop the moment your form breaks — never push to absolute failure.
+              One set of {LEVEL_INFO[data.level]?.name.toLowerCase()}. Stop the
+              moment your form breaks — never push to absolute failure.
             </Text>
-            
+
             <View style={styles.tapCounter}>
-              <Text style={[styles.tapCounterValue, { color: colors.primary }]}>{reps}</Text>
-              <Text style={styles.tapCounterLabel}>reps so far</Text>
+              <Text style={[styles.tapCounterValue, { color: colors.foreground }]}>
+                {reps}
+              </Text>
+              <Text
+                style={[styles.tapCounterLabel, { color: colors.mutedForeground }]}
+              >
+                reps so far
+              </Text>
             </View>
-            
-            <View style={{ width: "100%", gap: 16, marginTop: 40, maxWidth: 300 }}>
+
+            <View style={styles.maxTestActions}>
               <PrimaryButton
                 label="+1 rep"
+                icon="plus"
                 onPress={() => {
                   haptic.light();
                   setReps((prev) => prev + 1);
                 }}
-                variant="ghost"
+                variant="outline"
                 testID="btn-maxtest-plus"
               />
               <PrimaryButton
@@ -657,22 +707,27 @@ function MaxTestFlow() {
             </View>
           </View>
         ) : (
-          <View style={{ alignItems: "center", marginTop: 24 }}>
+          <View style={styles.maxTestBlock}>
             <Text style={[styles.doneTitle, { color: colors.foreground }]}>
               How many reps?
             </Text>
-            <Text style={[styles.introBody, { color: colors.mutedForeground, marginTop: 8 }]}>
+            <Text
+              style={[
+                styles.introBody,
+                { color: colors.mutedForeground, marginTop: 8 },
+              ]}
+            >
               Confirm the number of reps you completed with good form.
             </Text>
-            
-            <View style={{ marginVertical: 32 }}>
+
+            <View style={styles.stepperWrap}>
               <Stepper
                 value={reps}
                 onChange={(v) => setReps(Math.max(1, Math.min(99, v)))}
               />
             </View>
 
-            <View style={{ width: "100%", maxWidth: 300 }}>
+            <View style={styles.maxTestActions}>
               <PrimaryButton
                 label="Save result"
                 onPress={save}
@@ -689,89 +744,68 @@ function MaxTestFlow() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  summaryRoot: { flex: 1 },
-  
+
   navBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   navBack: {
-    width: 32, height: 32,
-    alignItems: "center", justifyContent: "center",
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
   navTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 14,
-    color: "#FFFFFF",
+    fontSize: 11,
+    fontFamily: font.bodyMedium,
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
-  
-  navBarClassic: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  navBackClassic: {
-    width: 32, height: 32,
-    alignItems: "center", justifyContent: "center",
-  },
-  navTitleClassic: {
-    fontFamily: "SpaceGrotesk_700Bold",
-    fontSize: 16,
-  },
-  
-  body: {
-    flex: 1,
-  },
+
+  body: { flex: 1 },
   centerWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
   },
-  
-  sessionLevelTag: {
-    fontSize: 12,
-    fontFamily: "Inter_700Bold",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    color: "rgba(255,255,255,0.6)",
-  },
-  sessionHint: {
+  circleWrap: { marginVertical: 36 },
+  hint: {
     fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.6)",
+    lineHeight: 20,
+    fontFamily: font.body,
     textAlign: "center",
   },
-  
+  banner: { marginBottom: 28 },
+
   footer: {
     paddingHorizontal: 24,
     width: "100%",
     maxWidth: 400,
     alignSelf: "center",
   },
-  
+
   restAdjustRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 32,
+    marginTop: 36,
     gap: 16,
   },
-  restAdjustBtn: {
-    width: 44, height: 44,
+  roundBtn: {
+    width: 44,
+    height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    alignItems: "center", justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
   },
   restAdjustText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    fontFamily: font.bodyMedium,
   },
 
   summaryHeader: {
@@ -779,170 +813,116 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
   },
-  summaryContent: {
-    paddingHorizontal: 24,
-  },
+  summaryContent: { paddingHorizontal: 24 },
   summaryCenter: {
     alignItems: "center",
-    marginBottom: 24,
+    marginTop: 16,
+    marginBottom: 8,
   },
-  successBadge: {
-    width: 60, height: 60,
-    borderRadius: 30,
-    alignItems: "center", justifyContent: "center",
-    marginBottom: 16,
+  successMark: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
   },
   doneTitle: {
-    fontSize: 24,
-    fontFamily: "SpaceGrotesk_700Bold",
+    fontSize: 28,
+    lineHeight: 36,
+    fontFamily: font.display,
+    textAlign: "center",
   },
   doneSub: {
     fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    marginTop: 4,
+    fontFamily: font.body,
+    marginTop: 6,
   },
-  
-  adjustLink: {
-    alignItems: "center",
-    paddingVertical: 12,
-  },
-  ghostAction: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
-  
-  summaryCard: {
-    marginTop: 16,
-    padding: 16,
-    gap: 16,
-  },
-  summaryLabel: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-  },
-  
+
+  adjustLink: { alignItems: "center", paddingVertical: 12 },
+  ghostAction: { fontSize: 14, fontFamily: font.bodySemi },
+
+  summaryCard: { marginTop: 12, gap: 16 },
+  summaryLabel: { fontSize: 15, fontFamily: font.bodySemi },
+
   adjustRoundRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  adjustRoundLabel: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-  adjustRow: {
-    flexDirection: "row",
+  adjustRoundLabel: { fontSize: 14, fontFamily: font.body },
+  adjustRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  smallRoundBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
-    gap: 16,
-  },
-  adjustBtn: {
-    width: 36, height: 36,
-    borderRadius: 18,
-    alignItems: "center", justifyContent: "center",
+    justifyContent: "center",
   },
   adjustValue: {
-    fontSize: 18,
-    fontFamily: "SpaceGrotesk_700Bold",
-    minWidth: 24,
+    fontSize: 20,
+    fontFamily: font.display,
+    minWidth: 28,
     textAlign: "center",
   },
-  
-  rpeTitle: {
-    fontSize: 16,
-    fontFamily: "SpaceGrotesk_700Bold",
-    marginBottom: 12,
-  },
-  rpeScale: {
-    flexDirection: "row",
-    width: "100%",
-    gap: 5,
-  },
+
+  rpeScale: { flexDirection: "row", width: "100%", gap: 5 },
   rpeDot: {
     flex: 1,
     aspectRatio: 1,
     borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
   },
-  rpeDotText: {
-    fontSize: 14,
-    fontFamily: "SpaceGrotesk_700Bold",
-  },
+  rpeDotText: { fontSize: 13, fontFamily: font.bodyMedium },
   rpeCaptionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     width: "100%",
-    paddingHorizontal: 8,
-    marginTop: 6,
+    marginTop: -4,
   },
   rpeCaption: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-    color: "#A7A9BC",
+    fontSize: 11,
+    fontFamily: font.bodyMedium,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
   },
 
-  painRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
+  painRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   painChip: {
-    paddingVertical: 8,
+    paddingVertical: 9,
     paddingHorizontal: 16,
-    borderRadius: 9999,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  painText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
-  painNote: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 18,
-  },
-  
-  addRoundWrap: {
-    marginTop: 16,
-  },
-  saveWrap: {
-    marginTop: 32,
-    marginBottom: 16,
-  },
-  
-  banner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 24,
-  },
-  bannerText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-    lineHeight: 18,
-  },
-  
+  painText: { fontSize: 14, fontFamily: font.bodyMedium },
+  painNote: { fontSize: 13, lineHeight: 19, fontFamily: font.body },
+
+  saveWrap: { marginTop: 32, marginBottom: 16 },
+
+  maxTestContent: { flexGrow: 1, justifyContent: "center" },
+  maxTestBlock: { alignItems: "center", width: "100%" },
   introBody: {
     fontSize: 15,
-    fontFamily: "Inter_400Regular",
     lineHeight: 22,
+    fontFamily: font.body,
     textAlign: "center",
+    maxWidth: 300,
   },
-  tapCounter: {
-    alignItems: "center",
-    marginVertical: 24,
-  },
+  tapCounter: { alignItems: "center", marginVertical: 36 },
   tapCounterValue: {
-    fontFamily: "SpaceGrotesk_700Bold",
-    fontSize: 72,
-    lineHeight: 76,
+    fontFamily: font.display,
+    fontSize: 96,
+    lineHeight: 110,
   },
   tapCounterLabel: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: "#6B6E85",
+    fontSize: 11,
+    fontFamily: font.bodyMedium,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
+  stepperWrap: { marginVertical: 36 },
+  maxTestActions: { width: "100%", maxWidth: 280, gap: 12 },
 });

@@ -15,7 +15,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Card, Chip, PrimaryButton, SectionTitle } from "@/components/UI";
+import {
+  Callout,
+  Card,
+  Chip,
+  PrimaryButton,
+  ScreenTitle,
+  SectionTitle,
+  font,
+} from "@/components/UI";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { rescheduleReminders } from "@/lib/notifications";
@@ -103,9 +111,7 @@ export default function SettingsScreen() {
         { paddingTop: topPad, paddingBottom: 130 },
       ]}
     >
-      <Text style={[styles.title, { color: colors.foreground }]}>
-        Settings
-      </Text>
+      <ScreenTitle subtitle="Tune your plan">Settings</ScreenTitle>
 
       <SectionTitle>Training</SectionTitle>
       <Card>
@@ -224,17 +230,14 @@ export default function SettingsScreen() {
           last
         />
         {data.health.cardio || data.health.joints || data.health.pain ? (
-          <View style={[styles.warnBox, { backgroundColor: colors.accent }]}>
-            <Feather
-              name="alert-triangle"
-              size={16}
-              color={colors.warning}
-            />
-            <Text style={[styles.warnText, { color: colors.foreground }]}>
-              Consult a physician or qualified health professional before
-              continuing this program.
-            </Text>
-          </View>
+          <Callout
+            icon="alert-triangle"
+            tone={colors.warning}
+            style={styles.warnGap}
+          >
+            Consult a physician or qualified health professional before
+            continuing this program.
+          </Callout>
         ) : null}
       </Card>
 
@@ -447,15 +450,11 @@ function ReminderCard({
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
-  title: {
-    fontSize: 32,
-    fontFamily: "SpaceGrotesk_700Bold",
-    marginBottom: 4,
-  },
-  rowLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  rowLabel: { fontSize: 15, fontFamily: font.bodySemi },
   rowHint: {
     fontSize: 13,
-    fontFamily: "Inter_400Regular",
+    lineHeight: 19,
+    fontFamily: font.body,
     marginTop: 12,
   },
   cardGap: { marginTop: 16 },
@@ -467,11 +466,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   stepValue: {
-    fontSize: 32,
-    fontFamily: "SpaceGrotesk_700Bold",
-    minWidth: 100,
+    fontSize: 34,
+    lineHeight: 42,
+    fontFamily: font.display,
+    minWidth: 110,
     textAlign: "center",
-    fontVariant: ["tabular-nums"],
   },
   roundBtn: {
     width: 44,
@@ -496,29 +495,17 @@ const styles = StyleSheet.create({
   toggleLabel: {
     flex: 1,
     fontSize: 15,
-    fontFamily: "Inter_500Medium",
+    fontFamily: font.body,
     lineHeight: 20,
   },
-  warnBox: {
-    flexDirection: "row",
-    gap: 12,
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 16,
-    alignItems: "center",
-  },
-  warnText: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    lineHeight: 20,
-  },
+  warnGap: { marginTop: 16 },
   dataCard: { gap: 12 },
   about: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    fontFamily: font.body,
     textAlign: "center",
-    marginTop: 32,
+    marginTop: 40,
+    lineHeight: 18,
   },
   reminderHead: {
     flexDirection: "row",
@@ -529,26 +516,27 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     padding: 24,
-    backgroundColor: "rgba(20,22,43,0.6)",
+    backgroundColor: "rgba(59,51,48,0.45)",
   },
   modalCard: {
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
     padding: 24,
   },
   modalTitle: {
-    fontSize: 22,
-    fontFamily: "SpaceGrotesk_700Bold",
+    fontSize: 24,
+    lineHeight: 30,
+    fontFamily: font.display,
     marginBottom: 4,
   },
   modalInput: {
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 12,
     padding: 16,
     height: 180,
     marginTop: 16,
     fontSize: 14,
-    fontFamily: "Inter_400Regular",
+    fontFamily: font.body,
     textAlignVertical: "top",
   },
   modalBtns: { flexDirection: "row", gap: 12, marginTop: 24 },

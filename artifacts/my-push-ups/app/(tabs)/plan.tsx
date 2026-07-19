@@ -3,7 +3,14 @@ import React from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Card, SectionTitle } from "@/components/UI";
+import {
+  Callout,
+  Card,
+  Kicker,
+  ScreenTitle,
+  SectionTitle,
+  font,
+} from "@/components/UI";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
@@ -49,12 +56,10 @@ export default function PlanScreen() {
         { paddingTop: topPad, paddingBottom: 130 },
       ]}
     >
-      <Text style={[styles.title, { color: colors.foreground }]}>Plan</Text>
+      <ScreenTitle subtitle="Your programme">Plan</ScreenTitle>
 
       <Card>
-        <Text style={[styles.levelKicker, { color: colors.primary }]}>
-          CURRENT LEVEL
-        </Text>
+        <Kicker color={colors.primary}>Current level</Kicker>
         <Text style={[styles.levelName, { color: colors.foreground }]}>
           {LEVEL_INFO[data.level]?.name}
         </Text>
@@ -63,8 +68,8 @@ export default function PlanScreen() {
         </Text>
       </Card>
 
-      <SectionTitle>This week's schedule</SectionTitle>
-      <Card style={styles.scheduleCard}>
+      <SectionTitle>This week</SectionTitle>
+      <Card style={styles.listCard}>
         {Array.from({ length: 7 }, (_, i) => {
           const key = addDays(weekStart, i);
           const wd = (i + 1) % 7;
@@ -84,7 +89,12 @@ export default function PlanScreen() {
               key={key}
               style={[
                 styles.dayRow,
-                i < 6 ? { borderBottomColor: colors.border, borderBottomWidth: 1 } : null,
+                i < 6
+                  ? {
+                      borderBottomColor: colors.border,
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                    }
+                  : null,
               ]}
             >
               <Text
@@ -92,28 +102,32 @@ export default function PlanScreen() {
                   styles.dayLabel,
                   {
                     color: isToday ? colors.primary : colors.mutedForeground,
+                    fontFamily: isToday ? font.bodySemi : font.bodyMedium,
                   },
                 ]}
               >
                 {DAY_LABELS[wd]}
               </Text>
               <View style={styles.dayInfo}>
-                <Text style={[styles.dayType, { color: colors.foreground }]}>
+                <Text
+                  style={[
+                    styles.dayType,
+                    { color: t ? colors.foreground : colors.mutedForeground },
+                  ]}
+                >
                   {t
                     ? `${SESSION_TYPE_LABEL[planForWeekday(data.dailyTarget, wd).type]} · ${planForWeekday(data.dailyTarget, wd).total} reps`
                     : "Rest"}
                 </Text>
               </View>
               {status === "done" ? (
-                <Feather name="check-circle" size={18} color={colors.success} />
+                <Feather name="check" size={16} color={colors.success} />
               ) : status === "due" ? (
-                <View
-                  style={[styles.dueDot, { backgroundColor: colors.primary }]}
-                />
+                <View style={[styles.dueDot, { backgroundColor: colors.primary }]} />
               ) : status === "missed" && t ? (
-                <Feather name="minus" size={16} color={colors.mutedForeground} />
+                <Feather name="minus" size={14} color={colors.mutedForeground} />
               ) : (
-                <View style={{ width: 18 }} />
+                <View style={{ width: 16 }} />
               )}
             </View>
           );
@@ -121,7 +135,7 @@ export default function PlanScreen() {
       </Card>
 
       <SectionTitle>Today's prescription</SectionTitle>
-      <Card>
+      <Card style={styles.listCard}>
         <PrescriptionRow
           label="Session"
           value={`${SESSION_TYPE_LABEL[todayPlan.type]} · ${todayPlan.total} reps`}
@@ -142,37 +156,23 @@ export default function PlanScreen() {
       </Card>
 
       <SectionTitle>How you progress</SectionTitle>
-      <Card>
-        <View style={styles.msgRow}>
-          <Feather name="trending-up" size={18} color={colors.primary} />
-          <Text style={[styles.msgText, { color: colors.foreground }]}>
-            {progressionMessage}
-          </Text>
-        </View>
-      </Card>
-      <Card style={styles.msgCard}>
-        <View style={styles.msgRow}>
-          <Feather
-            name="refresh-cw"
-            size={18}
-            color={retestIn === 0 ? colors.warning : colors.mutedForeground}
-          />
-          <Text style={[styles.msgText, { color: colors.foreground }]}>
-            {retestIn === 0
-              ? "Re-test due — take a max test to recalibrate your plan."
-              : `Next max re-test in about ${retestIn} ${retestIn === 1 ? "day" : "days"}.`}
-          </Text>
-        </View>
-      </Card>
-      <Card style={styles.msgCard}>
-        <View style={styles.msgRow}>
-          <Feather name="shield" size={18} color={colors.success} />
-          <Text style={[styles.msgText, { color: colors.foreground }]}>
-            Sets stay submaximal — stop each round when your form breaks, never
-            train to absolute failure.
-          </Text>
-        </View>
-      </Card>
+      <View style={styles.noteStack}>
+        <Callout icon="trending-up" tone={colors.primary}>
+          {progressionMessage}
+        </Callout>
+        <Callout
+          icon="refresh-cw"
+          tone={retestIn === 0 ? colors.warning : colors.mutedForeground}
+        >
+          {retestIn === 0
+            ? "Re-test due — take a max test to recalibrate your plan."
+            : `Next max re-test in about ${retestIn} ${retestIn === 1 ? "day" : "days"}.`}
+        </Callout>
+        <Callout icon="shield" tone={colors.success}>
+          Sets stay submaximal — stop each round when your form breaks, never
+          train to absolute failure.
+        </Callout>
+      </View>
     </ScrollView>
   );
 }
@@ -192,7 +192,10 @@ function PrescriptionRow({
       style={[
         styles.presRow,
         !last
-          ? { borderBottomColor: colors.border, borderBottomWidth: 1 }
+          ? {
+              borderBottomColor: colors.border,
+              borderBottomWidth: StyleSheet.hairlineWidth,
+            }
           : null,
       ]}
     >
@@ -208,52 +211,51 @@ function PrescriptionRow({
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
-  title: {
-    fontSize: 32,
-    fontFamily: "SpaceGrotesk_700Bold",
-    marginBottom: 16,
+
+  levelName: {
+    fontSize: 26,
+    lineHeight: 32,
+    fontFamily: font.display,
+    marginTop: 8,
   },
-  levelKicker: {
-    fontSize: 12,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 1.2,
-    marginBottom: 4,
-  },
-  levelName: { fontSize: 24, fontFamily: "SpaceGrotesk_700Bold" },
   levelDesc: {
     fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    marginTop: 4,
+    lineHeight: 20,
+    fontFamily: font.body,
+    marginTop: 6,
   },
-  scheduleCard: { paddingVertical: 4 },
+
+  listCard: { paddingVertical: 4 },
   dayRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 14,
     gap: 12,
   },
   dayLabel: {
     width: 44,
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
   },
   dayInfo: { flex: 1 },
-  dayType: { fontSize: 15, fontFamily: "Inter_500Medium" },
-  dueDot: { width: 10, height: 10, borderRadius: 5 },
+  dayType: { fontSize: 15, fontFamily: font.body },
+  dueDot: { width: 7, height: 7, borderRadius: 4 },
+
   presRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    gap: 16,
+    paddingVertical: 14,
   },
-  presLabel: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  presValue: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  msgCard: { marginTop: 12 },
-  msgRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  msgText: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 20,
+  presLabel: { fontSize: 14, fontFamily: font.body },
+  presValue: {
+    fontSize: 15,
+    fontFamily: font.bodySemi,
+    flexShrink: 1,
+    textAlign: "right",
   },
+
+  noteStack: { gap: 10 },
 });

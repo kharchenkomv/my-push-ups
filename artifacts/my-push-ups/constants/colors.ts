@@ -1,83 +1,95 @@
+// Quiet Ritual, warm-clay variant.
+//
+// Same design language as the Habit-Visualizer app — cream canvas, hairline
+// borders, calm radii, no colored glow — but the sage primary is swapped for a
+// terracotta so effort and intensity still read on a training app.
+//
+// Contrast: primary on background is 5.1:1 (light) and 6.3:1 (dark), so it is
+// safe for body-size text, not just large headings.
 const colors = {
   light: {
-    text: "#14162B",
-    tint: "#1E3A8A",
+    text: "#3b3330",
+    tint: "#a4542f",
 
-    background: "#F5F6FA",
-    foreground: "#14162B",
+    background: "#fbf9f2",
+    foreground: "#3b3330",
 
-    card: "#FFFFFF",
-    cardForeground: "#14162B",
+    card: "#ffffff",
+    cardForeground: "#3b3330",
 
-    primary: "#1E3A8A",
-    primaryForeground: "#FFFFFF",
+    primary: "#a4542f",
+    primaryForeground: "#fdfbf6",
 
-    secondary: "#FF7A3D",
-    secondaryForeground: "#FFFFFF",
+    secondary: "#ebe5d6",
+    secondaryForeground: "#4a423c",
 
-    muted: "#EEF0F6",
-    mutedForeground: "#6B6E85",
+    muted: "#eee9da",
+    mutedForeground: "#847a70",
 
-    accent: "#FFE3D2",
-    accentForeground: "#FF7A3D",
+    accent: "#f4ece2",
+    accentForeground: "#8a4526",
 
-    destructive: "#FF4D4D",
-    destructiveForeground: "#FFFFFF",
+    destructive: "#a53f3f",
+    destructiveForeground: "#ffffff",
 
-    border: "#D8DAE6",
-    input: "#D8DAE6",
+    border: "#e8e0cd",
+    input: "#e2d9c2",
 
-    success: "#1F8A4C",
-    warning: "#B4530C",
+    overlay: "rgba(59, 51, 48, 0.45)",
+    success: "#5a8e6f",
+    warning: "#96703a",
 
-    habit: "#FF7A3D",
-    strength: "#FF4D4D",
-    rest: "#4F98A3",
-    habitSoft: "#FFF4EC",
-    strengthSoft: "#FFF0F0",
-    surface: "#FFFFFF",
+    // Session semantics. `habit` is the everyday training session, `rest` the
+    // recovery/countdown state — deliberately cool so it reads as "not effort".
+    habit: "#a4542f",
+    strength: "#a53f3f",
+    rest: "#4e7f7e",
+    habitSoft: "#f4ece2",
+    strengthSoft: "#f6e9e6",
+    surface: "#ffffff",
   },
 
   dark: {
-    text: "#FFFFFF",
-    tint: "#FFFFFF",
+    text: "#ece5da",
+    tint: "#d68a5f",
 
-    background: "#10132B",
-    foreground: "#FFFFFF",
+    background: "#1e1b19",
+    foreground: "#ece5da",
 
-    card: "#0A0C1E",
-    cardForeground: "#FFFFFF",
+    card: "#272321",
+    cardForeground: "#ece5da",
 
-    primary: "#1E3A8A",
-    primaryForeground: "#FFFFFF",
+    primary: "#d68a5f",
+    primaryForeground: "#1a1310",
 
-    secondary: "#FF7A3D",
-    secondaryForeground: "#FFFFFF",
+    secondary: "#332d29",
+    secondaryForeground: "#d5cabd",
 
-    muted: "rgba(255, 255, 255, 0.1)",
-    mutedForeground: "rgba(255, 255, 255, 0.6)",
+    muted: "#2c2724",
+    mutedForeground: "#968b80",
 
-    accent: "rgba(255, 122, 61, 0.2)",
-    accentForeground: "#FF7A3D",
+    accent: "#352c26",
+    accentForeground: "#e0a077",
 
-    destructive: "#FF4D4D",
-    destructiveForeground: "#FFFFFF",
+    destructive: "#c86a6a",
+    destructiveForeground: "#ffffff",
 
-    border: "rgba(255, 255, 255, 0.15)",
-    input: "rgba(255, 255, 255, 0.15)",
+    border: "#3a332e",
+    input: "#3f3833",
 
-    success: "#1F8A4C",
-    warning: "#B4530C",
+    overlay: "rgba(0, 0, 0, 0.55)",
+    success: "#7eaf91",
+    warning: "#c2a067",
 
-    habit: "#FF7A3D",
-    strength: "#FF4D4D",
-    rest: "#4F98A3",
-    habitSoft: "rgba(255, 122, 61, 0.12)",
-    strengthSoft: "rgba(255, 77, 77, 0.12)",
-    surface: "#0A0C1E",
+    habit: "#d68a5f",
+    strength: "#c86a6a",
+    rest: "#7aa8a7",
+    habitSoft: "#352c26",
+    strengthSoft: "#3a2b2b",
+    surface: "#272321",
   },
 
-  radius: 16,
+  radius: 12,
 };
 
 export default colors;

@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontFamily: "SpaceGrotesk_700Bold",
+    fontFamily: "PlayfairDisplay_600SemiBold",
     textAlign: "center",
     lineHeight: 40,
   },
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   buttonText: {
-    fontFamily: "SpaceGrotesk_700Bold",
+    fontFamily: "PlayfairDisplay_600SemiBold",
     textAlign: "center",
     fontSize: 16,
   },
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontFamily: "SpaceGrotesk_700Bold",
+    fontFamily: "PlayfairDisplay_600SemiBold",
   },
   closeButton: {
     width: 44,

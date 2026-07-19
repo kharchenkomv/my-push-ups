@@ -59,9 +59,8 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
-    "@expo-google-fonts/space-grotesk": "^0.4.1",
+    "@expo-google-fonts/playfair-display": "^0.4.2",
     "expo-audio": "~1.1.1",
-    "expo-keep-awake": "~15.0.8",
-    "expo-video": "~3.0.16"
+    "expo-keep-awake": "~15.0.8"
   }
 }

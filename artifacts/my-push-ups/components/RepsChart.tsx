@@ -78,7 +78,7 @@ export function RepsChart({ points }: { points: RepsPoint[] }) {
         <Svg width={width} height={HEIGHT}>
           <Defs>
             <LinearGradient id="repsFill" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={colors.primary} stopOpacity={0.28} />
+              <Stop offset="0" stopColor={colors.primary} stopOpacity={0.16} />
               <Stop offset="1" stopColor={colors.primary} stopOpacity={0.02} />
             </LinearGradient>
           </Defs>
@@ -107,7 +107,7 @@ export function RepsChart({ points }: { points: RepsPoint[] }) {
             <Path
               d={linePath}
               stroke={colors.primary}
-              strokeWidth={2.5}
+              strokeWidth={2}
               fill="none"
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -131,7 +131,7 @@ export function RepsChart({ points }: { points: RepsPoint[] }) {
             x={PAD_L - 8}
             y={PAD_T + 4}
             fontSize={11}
-            fontFamily="Inter_600SemiBold"
+            fontFamily="Inter_500Medium"
             fill={colors.mutedForeground}
             textAnchor="end"
           >
@@ -141,7 +141,7 @@ export function RepsChart({ points }: { points: RepsPoint[] }) {
             x={PAD_L - 8}
             y={baseY + 4}
             fontSize={11}
-            fontFamily="Inter_600SemiBold"
+            fontFamily="Inter_500Medium"
             fill={colors.mutedForeground}
             textAnchor="end"
           >
@@ -153,7 +153,7 @@ export function RepsChart({ points }: { points: RepsPoint[] }) {
             x={pts[0]!.x}
             y={HEIGHT - 8}
             fontSize={11}
-            fontFamily="Inter_600SemiBold"
+            fontFamily="Inter_500Medium"
             fill={colors.mutedForeground}
             textAnchor={single ? "middle" : "start"}
           >
@@ -164,7 +164,7 @@ export function RepsChart({ points }: { points: RepsPoint[] }) {
               x={pts[pts.length - 1]!.x}
               y={HEIGHT - 8}
               fontSize={11}
-              fontFamily="Inter_600SemiBold"
+              fontFamily="Inter_500Medium"
               fill={colors.mutedForeground}
               textAnchor="end"
             >
