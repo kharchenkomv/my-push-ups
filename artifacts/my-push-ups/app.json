@@ -13,7 +13,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.mikhailkharchenko.mytrainer",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "supportsTablet": false,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
