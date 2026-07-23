@@ -1,96 +1,85 @@
 import type {
   AppData,
   HealthAnswers,
-  Level,
   MaxTestEntry,
   SessionEntry,
   Settings,
 } from "./types";
 
-export const LEVEL_INFO: {
-  name: string;
-  short: string;
-  description: string;
-  bestFor: string;
-}[] = [
-  {
-    name: "Wall push-ups",
-    short: "Wall",
-    description: "Hands on a wall, body at an angle.",
-    bestFor: "Best for just getting started",
-  },
-  {
-    name: "Incline push-ups",
-    short: "Incline",
-    description: "Hands on a counter, bench, or step.",
-    bestFor: "Best if wall push-ups feel easy",
-  },
-  {
-    name: "Knee push-ups",
-    short: "Knee",
-    description: "Knees on the floor, hands under shoulders.",
-    bestFor: "Best if you can do a few incline reps",
-  },
-  {
-    name: "Full push-ups",
-    short: "Full",
-    description: "Standard floor push-ups.",
-    bestFor: "Best if you can do 8+ with good form",
-  },
-];
+// ============================================================================
+// Strength-oriented push-up engine.
+//
+// Implements pushup_strength_methodology.md: round targets are a fraction of the
+// user's current max, shaped across a fixed 7-day microcycle (5 progressive days
+// with small cumulative bumps, a hold day, then a lighter technical day). Real
+// progression comes from periodic max re-tests raising the max, not from the
+// intra-week bumps. There is no fitness-level ladder — one max number drives
+// everything.
+//
+// Where the spec's prose and its worked examples disagree, this follows the
+// examples (self-consistent across all three example weeks) and the explicit
+// Step 1–4 rules; deviations are noted inline.
+// ============================================================================
 
 export const MILESTONES = [10, 20, 30, 50, 75, 100];
-export const RETEST_DAYS = 21;
 export const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// --- Session methodology (spec §1) --------------------------------------------
-
 export const SESSION_ROUNDS = 5;
-// Descending per-round share of the session target (spec §1.2).
-export const ROUND_PERCENTS = [1, 0.9, 0.85, 0.8, 0.75];
-// Per-variation caps on the daily target (spec §1.3): wall, incline, knee, full.
-export const LEVEL_REP_CAP: number[] = [15, 12, 10, 8];
-export const MIN_DAILY_TARGET = 2;
-export const MAX_REST_SECONDS = 120; // spec §1.1 / §4: rest cannot exceed 2 min
-export const DEFAULT_REST_SECONDS = 60;
+export const MICROCYCLE_DAYS = 7;
 
-export type SessionType = "standard" | "lighter" | "easy";
+// Per-round rep band (methodology §Step 2): a 3-rep safety floor and a
+// ceiling of floor(0.70 × max) keep every set clearly submaximal.
+export const MIN_ROUND_REPS = 3;
+export const CAP_FRACTION = 0.7;
 
-// Session-type intensity as a fraction of the Standard daily target (spec §1.4).
-export const SESSION_MULT: Record<SessionType, number> = {
-  standard: 1,
-  lighter: 0.85, // "about 80–85%"
-  easy: 0.65, // "about 60–70%"
+// Re-test cadence: the spec allows "every 7–14 days (configurable)". 14 is the
+// calmer end — a max-effort test every week is a lot to ask of a real user.
+export const RETEST_DAYS = 14;
+
+export const MAX_REST_SECONDS = 180; // strength rest can run to ~3 min (§Core)
+export const DEFAULT_REST_SECONDS = 90;
+
+// Base intensities as a fraction of current max, per round (§Step 1).
+export const BASE_PCT = [0.6, 0.6, 0.55, 0.55, 0.5];
+// Technical / light day, microcycle day 7 (§Step 3).
+export const TECHNICAL_PCT = [0.5, 0.5, 0.45, 0.45, 0.4];
+
+// Cumulative per-round bumps across the progressive days, taken from the worked
+// examples: +R5 on day 2, +R1 on day 3, +R2 on day 4, +R3 on day 5 (Round 4 is
+// never bumped inside a cycle). Index = round, value = reps added by that
+// microcycle position. Day 6 (hold) reuses day 5; day 7 (technical) has its own
+// percentages and no bump. The beginner example's cosmetic day-1 R5 taper is not
+// applied — the intermediate example confirms it isn't a rule.
+const INCREMENTS: Record<number, number[]> = {
+  1: [0, 0, 0, 0, 0],
+  2: [0, 0, 0, 0, 1],
+  3: [1, 0, 0, 0, 1],
+  4: [1, 1, 0, 0, 1],
+  5: [1, 1, 1, 0, 1],
+  6: [1, 1, 1, 0, 1],
 };
 
-export const SESSION_TYPE_LABEL: Record<SessionType, string> = {
-  standard: "Standard",
-  lighter: "Lighter",
-  easy: "Easy technique",
-};
+export type DayType = "progressive" | "hold" | "technical";
 
-// Fixed weekly pattern (spec §1.5), mapped onto weekdays Mon..Sun.
-// weekday: 0 = Sunday … 6 = Saturday.
-const WEEKDAY_SESSION: Record<number, SessionType> = {
-  1: "standard", // Mon (Day 1)
-  2: "lighter", // Tue (Day 2)
-  3: "standard", // Wed (Day 3)
-  4: "easy", // Thu (Day 4)
-  5: "standard", // Fri (Day 5)
-  6: "lighter", // Sat (Day 6)
-  0: "standard", // Sun (Day 7)
+export const DAY_TYPE_LABEL: Record<DayType, string> = {
+  progressive: "Progressive",
+  hold: "Hold",
+  technical: "Technical",
 };
 
 export interface DayPlan {
-  type: SessionType;
-  target: number; // this session's target reps (round 1 value)
-  rounds: number[]; // 5 descending per-round targets
+  dayNumber: number; // global microcycle counter (1-based)
+  microPos: number; // position within the 7-day cycle (1..7)
+  type: DayType;
+  rounds: number[]; // 5 per-round targets
   total: number;
 }
 
 export function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
+
+// --- Date helpers -------------------------------------------------------------
 
 export function dateKey(d: Date = new Date()): string {
   const y = d.getFullYear();
@@ -116,13 +105,6 @@ export function daysBetween(a: string, b: string): number {
   );
 }
 
-export function weekStartKey(d: Date = new Date()): string {
-  const day = (d.getDay() + 6) % 7;
-  const m = new Date(d);
-  m.setDate(d.getDate() - day);
-  return dateKey(m);
-}
-
 export function weekdayOf(key: string): number {
   return keyToDate(key).getDay();
 }
@@ -133,70 +115,88 @@ export function formatSeconds(total: number): string {
   return `${m}:${`${s}`.padStart(2, "0")}`;
 }
 
-// --- Target & round maths -----------------------------------------------------
+// --- Round & microcycle maths -------------------------------------------------
 
-export function levelCap(level: Level): number {
-  return LEVEL_REP_CAP[level] ?? 8;
+// One round's reps: floor(pct × max), held inside the strength band
+// [MIN_ROUND_REPS, floor(CAP × max)]. The 3-rep floor wins for very low maxes,
+// where the cap would otherwise fall below it. Below a max of 3 the app can't
+// prescribe anything submaximal, so every round is simply the max (§Step 2).
+export function roundRepFromPct(pct: number, max: number): number {
+  if (max < MIN_ROUND_REPS) return Math.max(0, Math.floor(max));
+  const cap = Math.max(MIN_ROUND_REPS, Math.floor(CAP_FRACTION * max));
+  return clamp(Math.floor(pct * max), MIN_ROUND_REPS, cap);
 }
 
-// Spec §1.3: daily_target = floor(max_reps × 0.5), bounded [2, per-level cap].
-export function dailyTargetFor(maxReps: number, level: Level): number {
-  return clamp(Math.floor(maxReps * 0.5), MIN_DAILY_TARGET, levelCap(level));
+// Position within the 7-day microcycle for a 1-based global day counter.
+export function microPosOf(dayNumber: number): number {
+  const n = Math.max(1, Math.floor(dayNumber));
+  return ((n - 1) % MICROCYCLE_DAYS) + 1;
 }
 
-export function sessionTypeForWeekday(weekday: number): SessionType {
-  return WEEKDAY_SESSION[weekday] ?? "standard";
+export function dayTypeFor(dayNumber: number): DayType {
+  const pos = microPosOf(dayNumber);
+  if (pos === MICROCYCLE_DAYS) return "technical";
+  return pos === 6 ? "hold" : "progressive";
 }
 
-// This session's target reps for a given intensity (spec §1.4).
-export function sessionTargetReps(
-  dailyTarget: number,
-  type: SessionType,
-): number {
-  if (type === "standard") return Math.max(MIN_DAILY_TARGET, dailyTarget);
-  return Math.max(MIN_DAILY_TARGET, Math.round(dailyTarget * SESSION_MULT[type]));
+// The full prescription for a microcycle day, from the current max.
+export function planForDay(max: number, dayNumber: number): DayPlan {
+  const microPos = microPosOf(dayNumber);
+  const type = dayTypeFor(dayNumber);
+
+  let rounds: number[];
+  if (type === "technical") {
+    rounds = TECHNICAL_PCT.map((p) => roundRepFromPct(p, max));
+  } else {
+    const inc = INCREMENTS[microPos] ?? INCREMENTS[1]!;
+    const cap = Math.max(MIN_ROUND_REPS, Math.floor(CAP_FRACTION * max));
+    rounds = BASE_PCT.map((p, i) => {
+      const bumped = roundRepFromPct(p, max) + (inc[i] ?? 0);
+      // Re-clamp after the bump so a bumped round can't break the band.
+      if (max < MIN_ROUND_REPS) return Math.max(0, Math.floor(max));
+      return clamp(bumped, MIN_ROUND_REPS, cap);
+    });
+  }
+
+  return {
+    dayNumber,
+    microPos,
+    type,
+    rounds,
+    total: rounds.reduce((a, b) => a + b, 0),
+  };
 }
 
-// The 5 descending per-round targets, kept non-increasing with a floor of 1.
-export function roundReps(sessionTarget: number): number[] {
-  let prev = Infinity;
-  return ROUND_PERCENTS.map((p) => {
-    let v = Math.max(1, Math.round(sessionTarget * p));
-    if (v > prev) v = prev;
-    prev = v;
-    return v;
-  });
+// Advance the microcycle by one — called only when a session is completed, so a
+// skipped calendar day leaves the same prescription in place (§Step 5).
+export function advanceDayNumber(dayNumber: number): number {
+  return Math.max(1, Math.floor(dayNumber)) + 1;
 }
 
-// Full plan for a given weekday from the stored daily target.
-export function planForWeekday(dailyTarget: number, weekday: number): DayPlan {
-  const type = sessionTypeForWeekday(weekday);
-  const target = sessionTargetReps(dailyTarget, type);
-  const rounds = roundReps(target);
-  return { type, target, rounds, total: rounds.reduce((a, b) => a + b, 0) };
-}
-
-// Convenience: today's (or a given date's) plan for the user's data.
-export function planForDate(data: AppData, key: string = dateKey()): DayPlan {
-  return planForWeekday(data.dailyTarget, weekdayOf(key));
+// Today's prescription for the user's data (purely microcycle-based; no calendar
+// dependence — the day only advances when a session is logged).
+export function planForDate(data: AppData): DayPlan {
+  return planForDay(currentMaxReps(data), data.dayNumber);
 }
 
 // --- Max test & scheduling ----------------------------------------------------
 
-export function latestMaxTest(
-  data: AppData,
-  level: Level,
-): MaxTestEntry | null {
-  const tests = data.maxTests.filter((t) => t.level === level);
-  return tests.length > 0 ? (tests[tests.length - 1] ?? null) : null;
+export function latestMaxTest(data: AppData): MaxTestEntry | null {
+  return data.maxTests.length > 0
+    ? (data.maxTests[data.maxTests.length - 1] ?? null)
+    : null;
 }
 
 export function currentMaxReps(data: AppData): number {
-  return latestMaxTest(data, data.level)?.reps ?? 5;
+  return latestMaxTest(data)?.reps ?? 5;
+}
+
+export function bestMax(data: AppData): number {
+  return data.maxTests.reduce((a, t) => Math.max(a, t.reps), 0);
 }
 
 export function daysSinceMaxTest(data: AppData): number | null {
-  const last = latestMaxTest(data, data.level);
+  const last = latestMaxTest(data);
   if (!last) return null;
   return daysBetween(last.date, dateKey());
 }
@@ -216,53 +216,6 @@ export function sessionOn(
   key: string,
 ): SessionEntry | undefined {
   return sessions.find((s) => s.date === key);
-}
-
-// --- Weekly progression (spec §2.1) -------------------------------------------
-
-// Spec's "at least 6 of 7 sessions" assumes a fixed 7-day week. The app also
-// offers 5- and 6-day habit schedules (spec doesn't address these), so the
-// session-count bar scales with the chosen schedule instead of staying a flat
-// 6 — otherwise a 5- or 6-day plan could never clear it. round(7 × 0.85) = 6,
-// so the default 7-day case is unchanged.
-export function requiredSessionsForProgress(habitDaysPerWeek: number): number {
-  return Math.max(1, Math.round(habitDaysPerWeek * 0.85));
-}
-
-export function evaluateWeek(
-  data: AppData,
-  now: Date = new Date(),
-): Partial<AppData> | null {
-  const currentWeek = weekStartKey(now);
-  if (data.lastWeekEvaluated === currentWeek) return null;
-  const prevStart = addDays(currentWeek, -7);
-  const prev = data.sessions.filter(
-    (s) => s.date >= prevStart && s.date < currentWeek,
-  );
-  let target = data.dailyTarget;
-  const cap = levelCap(data.level);
-  if (prev.length > 0) {
-    const rated = prev.filter((s) => s.rpe !== null);
-    const avg =
-      rated.length > 0
-        ? rated.reduce((a, s) => a + (s.rpe ?? 0), 0) / rated.length
-        : 5;
-    const allRoundsDone = prev.every(
-      (s) => s.roundsCompleted >= s.roundsPlanned,
-    );
-    // Pain/recovery feedback must influence progression (spec §2.1/§3.1): a
-    // single flagged session withholds the increase; repeated pain forces a
-    // reduction, same as a rough RPE week.
-    const painSessions = prev.filter((s) => s.painFlags.length > 0).length;
-    const required = requiredSessionsForProgress(data.settings.habitDaysPerWeek);
-    if (prev.length >= required && avg <= 7 && allRoundsDone && painSessions === 0) {
-      target = Math.min(cap, target + 1); // +1 rep, conservative
-    } else if (avg >= 8 || !allRoundsDone || painSessions >= 2) {
-      target = Math.max(MIN_DAILY_TARGET, target - 1);
-    }
-    // otherwise hold
-  }
-  return { dailyTarget: target, lastWeekEvaluated: currentWeek };
 }
 
 // --- Stats --------------------------------------------------------------------
@@ -285,12 +238,6 @@ export function recentPainFlags(data: AppData): boolean {
   return data.sessions.slice(-3).some((s) => s.painFlags.length > 0);
 }
 
-export function bestMax(data: AppData, level: Level): number {
-  return data.maxTests
-    .filter((t) => t.level === level)
-    .reduce((a, t) => Math.max(a, t.reps), 0);
-}
-
 // --- Construction & persistence ----------------------------------------------
 
 export function defaultSettings(goalReps: number): Settings {
@@ -299,57 +246,52 @@ export function defaultSettings(goalReps: number): Settings {
     restSeconds: DEFAULT_REST_SECONDS,
     goalReps,
     sound: true,
-    haptics: true,
-    habitReminder: { enabled: false, hour: 7, minute: 0, days: [0, 1, 2, 3, 4, 5, 6] },
+    habitReminder: {
+      enabled: false,
+      hour: 7,
+      minute: 0,
+      days: [0, 1, 2, 3, 4, 5, 6],
+    },
   };
 }
 
 export function createInitialData(params: {
-  level: Level;
   maxReps: number;
   health: HealthAnswers;
   goalReps: number;
 }): AppData {
-  const { level, maxReps, health, goalReps } = params;
+  const { maxReps, health, goalReps } = params;
   return {
     onboardingComplete: true,
-    level,
     health,
     settings: defaultSettings(goalReps),
-    maxTests: [{ date: dateKey(), level, reps: maxReps }],
+    maxTests: [{ date: dateKey(), reps: maxReps }],
     sessions: [],
-    dailyTarget: dailyTargetFor(maxReps, level),
-    lastWeekEvaluated: weekStartKey(),
+    dayNumber: 1,
     needsMaxTest: false,
   };
 }
 
 const PAIN_VALUES = ["wrist", "shoulder", "elbow", "chest"];
 
-function isValidMaxTest(t: unknown): t is MaxTestEntry {
+function isValidMaxTest(t: unknown): boolean {
   if (typeof t !== "object" || t === null) return false;
   const o = t as Record<string, unknown>;
   return (
     typeof o.date === "string" &&
     /^\d{4}-\d{2}-\d{2}$/.test(o.date) &&
-    typeof o.level === "number" &&
-    o.level >= 0 &&
-    o.level <= 3 &&
     typeof o.reps === "number" &&
     Number.isFinite(o.reps) &&
     o.reps > 0
   );
 }
 
-function isValidSession(s: unknown): s is SessionEntry {
+function isValidSession(s: unknown): boolean {
   if (typeof s !== "object" || s === null) return false;
   const o = s as Record<string, unknown>;
   return (
     typeof o.date === "string" &&
     /^\d{4}-\d{2}-\d{2}$/.test(o.date) &&
-    typeof o.level === "number" &&
-    o.level >= 0 &&
-    o.level <= 3 &&
     typeof o.targetReps === "number" &&
     typeof o.roundsPlanned === "number" &&
     typeof o.roundsCompleted === "number" &&
@@ -390,55 +332,51 @@ function sanitizeReminder(
   };
 }
 
-// Accepts current backups plus legacy ones (roundRepsHabit, ramp fields,
-// strength-track data, per-session `track`, …): unknown fields are dropped and
-// old sessions kept as history so streaks/stats survive.
+// Accepts current backups plus older ones. Legacy shapes carried a per-variation
+// `level`, a `dailyTarget` scalar and `lastWeekEvaluated` (from the habit-era
+// weekday engine); those are dropped, `dayNumber` is synthesized, and old
+// sessions/tests are kept as history so streaks and stats survive.
 export function sanitizeImport(raw: unknown): AppData | null {
   if (typeof raw !== "object" || raw === null) return null;
   const o = raw as Record<string, unknown>;
 
-  if (
-    typeof o.level !== "number" ||
-    o.level < 0 ||
-    o.level > 3 ||
-    !Number.isInteger(o.level)
-  ) {
-    return null;
-  }
-  const level = o.level as Level;
-
   if (!Array.isArray(o.maxTests) || !Array.isArray(o.sessions)) return null;
+
   const maxTests: MaxTestEntry[] = (o.maxTests as unknown[])
     .filter(isValidMaxTest)
-    .map((t) => ({
-      date: t.date,
-      level: Math.floor(t.level) as Level,
-      reps: clamp(Math.floor(t.reps), 1, 999),
-    }));
+    .map((t) => {
+      const e = t as Record<string, unknown>;
+      return {
+        date: e.date as string,
+        reps: clamp(Math.floor(e.reps as number), 1, 999),
+      };
+    });
   if (maxTests.length === 0) return null;
 
   const sessions: SessionEntry[] = (o.sessions as unknown[])
     .filter(isValidSession)
-    .map((s) => ({
-      id: typeof (s as SessionEntry).id === "string" ? (s as SessionEntry).id : newId(),
-      date: s.date,
-      level: Math.floor(s.level) as Level,
-      targetReps: clamp(Math.floor(s.targetReps), 0, 999),
-      roundsPlanned: clamp(Math.floor(s.roundsPlanned), 0, 20),
-      roundsCompleted: clamp(Math.floor(s.roundsCompleted), 0, 20),
-      repsPerRound: s.repsPerRound
-        .slice(0, 20)
-        .map((r) => clamp(Math.floor(r), 0, 999)),
-      rpe:
-        typeof s.rpe === "number" && s.rpe >= 1 && s.rpe <= 10
-          ? Math.round(s.rpe)
-          : null,
-      painFlags: Array.isArray(s.painFlags)
-        ? (s.painFlags.filter((p) =>
-            PAIN_VALUES.includes(p as string),
-          ) as SessionEntry["painFlags"])
-        : [],
-    }));
+    .map((s) => {
+      const e = s as Record<string, unknown>;
+      return {
+        id: typeof e.id === "string" ? e.id : newId(),
+        date: e.date as string,
+        targetReps: clamp(Math.floor(e.targetReps as number), 0, 999),
+        roundsPlanned: clamp(Math.floor(e.roundsPlanned as number), 0, 20),
+        roundsCompleted: clamp(Math.floor(e.roundsCompleted as number), 0, 20),
+        repsPerRound: (e.repsPerRound as number[])
+          .slice(0, 20)
+          .map((r) => clamp(Math.floor(r), 0, 999)),
+        rpe:
+          typeof e.rpe === "number" && e.rpe >= 1 && e.rpe <= 10
+            ? Math.round(e.rpe)
+            : null,
+        painFlags: Array.isArray(e.painFlags)
+          ? (e.painFlags.filter((p) =>
+              PAIN_VALUES.includes(p as string),
+            ) as SessionEntry["painFlags"])
+          : [],
+      };
+    });
 
   const def = defaultSettings(50);
   const so =
@@ -456,7 +394,6 @@ export function sanitizeImport(raw: unknown): AppData | null {
     ),
     goalReps: clamp(Math.floor(numOr(so.goalReps, def.goalReps)), 1, 999),
     sound: boolOr(so.sound, true),
-    haptics: boolOr(so.haptics, true),
     habitReminder: sanitizeReminder(so.habitReminder, def.habitReminder),
   };
 
@@ -471,35 +408,24 @@ export function sanitizeImport(raw: unknown): AppData | null {
     acknowledged: boolOr(ho.acknowledged, true),
   };
 
-  const latestReps = latestTestReps(maxTests, level) ?? 5;
-  const cap = levelCap(level);
+  // Advance the microcycle counter by the number of completed sessions when no
+  // valid dayNumber is stored (migrating habit-era data), so returning users
+  // don't restart the cycle from scratch.
+  const storedDay = numOr(o.dayNumber, NaN);
+  const dayNumber =
+    Number.isFinite(storedDay) && storedDay >= 1
+      ? Math.floor(storedDay)
+      : Math.max(1, sessions.length + 1);
 
   return {
     onboardingComplete: true,
-    level,
     health,
     settings,
     maxTests,
     sessions,
-    dailyTarget: clamp(
-      Math.floor(numOr(o.dailyTarget, dailyTargetFor(latestReps, level))),
-      MIN_DAILY_TARGET,
-      cap,
-    ),
-    lastWeekEvaluated:
-      typeof o.lastWeekEvaluated === "string" &&
-      /^\d{4}-\d{2}-\d{2}$/.test(o.lastWeekEvaluated)
-        ? o.lastWeekEvaluated
-        : weekStartKey(),
+    dayNumber,
     needsMaxTest: boolOr(o.needsMaxTest, false),
   };
-}
-
-function latestTestReps(tests: MaxTestEntry[], level: Level): number | null {
-  const filtered = tests.filter((t) => t.level === level);
-  return filtered.length > 0
-    ? (filtered[filtered.length - 1]?.reps ?? null)
-    : null;
 }
 
 export function newId(): string {

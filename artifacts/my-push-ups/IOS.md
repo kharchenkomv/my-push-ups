@@ -6,7 +6,9 @@ Reviewed 2026-07-19 against Expo SDK 54 / React Native 0.81.5 (new architecture 
 
 Offline, no-login push-up trainer. Single Expo app (`artifacts/my-push-ups`) in a pnpm
 monorepo; no backend, no env vars, no secrets. All state lives in AsyncStorage under the
-key `mpu:data:v1`. The training engine is pure functions in `lib/training.ts` (53 tests).
+key `mpu:data:v1`. The training engine is pure functions in `lib/training.ts` (44 tests).
+The engine is strength-oriented (a 7-day microcycle of max-relative round targets); see
+`pushup_strength_methodology.md` and `replit.md` for the model.
 
 ## iOS-specific implementation (already in place)
 

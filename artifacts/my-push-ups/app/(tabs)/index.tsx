@@ -22,10 +22,11 @@ import {
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
-  LEVEL_INFO,
+  DAY_TYPE_LABEL,
+  MICROCYCLE_DAYS,
   SESSION_ROUNDS,
-  SESSION_TYPE_LABEL,
   bestMax,
+  currentMaxReps,
   currentStreak,
   dateKey,
   daysSinceMaxTest,
@@ -58,9 +59,9 @@ export default function TodayScreen() {
   const doneToday = sessionOn(data.sessions, today);
   const testDue = data.needsMaxTest || maxTestDue(data);
   const streak = currentStreak(data.sessions);
-  const best = bestMax(data, data.level);
+  const best = bestMax(data);
   const daysSince = daysSinceMaxTest(data);
-  const plan = planForDate(data, today);
+  const plan = planForDate(data);
 
   const dateLabel = now.toLocaleDateString(undefined, {
     weekday: "long",
@@ -83,7 +84,7 @@ export default function TodayScreen() {
             {greeting(now.getHours())}
           </Text>
           <Text style={[styles.heroMeta, { color: colors.mutedForeground }]}>
-            {LEVEL_INFO[data.level]?.name}
+            Max {currentMaxReps(data)} push-ups
           </Text>
         </View>
         {streak > 0 ? (
@@ -105,8 +106,8 @@ export default function TodayScreen() {
             Take a max test
           </Text>
           <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
-            One set of {LEVEL_INFO[data.level]?.name.toLowerCase()} to size your
-            new plan.
+            One set of push-ups to your technical limit — this sizes your whole
+            plan.
           </Text>
           <View style={styles.cardAction}>
             <PrimaryButton
@@ -140,7 +141,8 @@ export default function TodayScreen() {
         <Card>
           <View style={styles.cardHead}>
             <Kicker color={colors.primary}>
-              {SESSION_TYPE_LABEL[plan.type]} session
+              {DAY_TYPE_LABEL[plan.type]} · Day {plan.microPos} of{" "}
+              {MICROCYCLE_DAYS}
             </Kicker>
             <Kicker>~5 min</Kicker>
           </View>
@@ -148,8 +150,7 @@ export default function TodayScreen() {
             {plan.rounds.join(" · ")}
           </Text>
           <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
-            {SESSION_ROUNDS} rounds · {plan.total} reps ·{" "}
-            {LEVEL_INFO[data.level]?.name} · rest{" "}
+            {SESSION_ROUNDS} rounds · {plan.total} reps · rest{" "}
             {formatSeconds(data.settings.restSeconds)}
           </Text>
           <View style={styles.cardAction}>

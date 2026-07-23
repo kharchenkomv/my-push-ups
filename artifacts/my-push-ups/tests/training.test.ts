@@ -2,32 +2,32 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   addDays,
+  advanceDayNumber,
+  bestMax,
   clamp,
   createInitialData,
+  currentMaxReps,
   currentStreak,
-  dailyTargetFor,
   dateKey,
+  dayTypeFor,
   daysBetween,
-  defaultSettings,
-  evaluateWeek,
   formatSeconds,
   isHabitDay,
   keyToDate,
-  levelCap,
   maxTestDue,
-  planForWeekday,
-  requiredSessionsForProgress,
-  roundReps,
-  sessionTargetReps,
-  sessionTypeForWeekday,
-  weekStartKey,
+  microPosOf,
+  planForDay,
+  roundRepFromPct,
+  weekdayOf,
+  MICROCYCLE_DAYS,
+  MIN_ROUND_REPS,
+  RETEST_DAYS,
   SESSION_ROUNDS,
 } from "../lib/training";
-import type { AppData, Level, SessionEntry, Settings } from "../lib/types";
+import type { AppData, SessionEntry, Settings } from "../lib/types";
 
 function makeData(overrides: Partial<AppData> = {}): AppData {
   const base = createInitialData({
-    level: 2,
     maxReps: 20,
     health: { cardio: false, joints: false, pain: false, acknowledged: true },
     goalReps: 50,
@@ -39,11 +39,10 @@ function session(overrides: Partial<SessionEntry> = {}): SessionEntry {
   return {
     id: `s-${Math.random()}`,
     date: "2026-07-06",
-    level: 2,
-    targetReps: 10,
+    targetReps: 12,
     roundsPlanned: SESSION_ROUNDS,
     roundsCompleted: SESSION_ROUNDS,
-    repsPerRound: [10, 9, 9, 8, 8],
+    repsPerRound: [12, 12, 11, 11, 10],
     rpe: 6,
     painFlags: [],
     ...overrides,
@@ -67,261 +66,137 @@ describe("date helpers", () => {
     assert.equal(daysBetween("2026-03-07", "2026-03-09"), 2);
   });
 
-  it("weekStartKey returns Monday", () => {
-    assert.equal(weekStartKey(new Date(2026, 6, 6)), "2026-07-06");
-    assert.equal(weekStartKey(new Date(2026, 6, 12)), "2026-07-06");
-  });
-
   it("formatSeconds renders m:ss", () => {
     assert.equal(formatSeconds(45), "0:45");
-    assert.equal(formatSeconds(120), "2:00");
+    assert.equal(formatSeconds(90), "1:30");
+    assert.equal(formatSeconds(180), "3:00");
   });
 
   it("clamp bounds values", () => {
     assert.equal(clamp(50, 1, 10), 10);
     assert.equal(clamp(-5, 1, 10), 1);
   });
-});
 
-describe("dailyTargetFor (spec §1.3)", () => {
-  it("is floor(max × 0.5) within [2, per-level cap]", () => {
-    // Level 2 (knee) cap = 10
-    assert.equal(dailyTargetFor(20, 2), 10); // floor(10)=10, at cap
-    assert.equal(dailyTargetFor(16, 2), 8); // floor(8)
-    assert.equal(dailyTargetFor(30, 2), 10); // floor(15) -> capped 10
-  });
-
-  it("applies each variation's cap", () => {
-    assert.equal(levelCap(0), 15);
-    assert.equal(levelCap(1), 12);
-    assert.equal(levelCap(2), 10);
-    assert.equal(levelCap(3), 8);
-    assert.equal(dailyTargetFor(100, 0), 15);
-    assert.equal(dailyTargetFor(100, 1), 12);
-    assert.equal(dailyTargetFor(100, 3), 8);
-  });
-
-  it("never drops below 2", () => {
-    assert.equal(dailyTargetFor(2, 3), 2); // floor(1)=1 -> 2
-    assert.equal(dailyTargetFor(1, 0), 2);
+  it("weekdayOf reads the weekday", () => {
+    assert.equal(weekdayOf("2026-07-06"), 1); // Monday
   });
 });
 
-describe("session types (spec §1.4/§1.5)", () => {
-  it("maps the fixed weekly pattern by weekday", () => {
-    assert.equal(sessionTypeForWeekday(1), "standard"); // Mon
-    assert.equal(sessionTypeForWeekday(2), "lighter"); // Tue
-    assert.equal(sessionTypeForWeekday(3), "standard"); // Wed
-    assert.equal(sessionTypeForWeekday(4), "easy"); // Thu
-    assert.equal(sessionTypeForWeekday(5), "standard"); // Fri
-    assert.equal(sessionTypeForWeekday(6), "lighter"); // Sat
-    assert.equal(sessionTypeForWeekday(0), "standard"); // Sun
+describe("roundRepFromPct (methodology §Step 2)", () => {
+  it("is floor(pct × max) inside the strength band", () => {
+    assert.equal(roundRepFromPct(0.6, 25), 15);
+    assert.equal(roundRepFromPct(0.55, 25), 13); // floor(13.75)
+    assert.equal(roundRepFromPct(0.5, 25), 12); // floor(12.5)
   });
 
-  it("scales the target by intensity, floored at 2", () => {
-    assert.equal(sessionTargetReps(10, "standard"), 10);
-    assert.equal(sessionTargetReps(10, "lighter"), 9); // round(8.5)
-    assert.equal(sessionTargetReps(10, "easy"), 7); // round(6.5)
-    assert.equal(sessionTargetReps(2, "easy"), 2); // floored
+  it("caps each round at floor(0.70 × max)", () => {
+    // A high fraction is pulled back to the 70% ceiling.
+    assert.equal(roundRepFromPct(0.9, 20), 14); // floor(0.7*20)=14, not 18
+  });
+
+  it("applies the 3-rep floor, which wins over a sub-3 cap", () => {
+    // max 4: cap floor(2.8)=2, but the 3-rep safety floor takes precedence.
+    assert.equal(roundRepFromPct(0.5, 4), 3);
+    assert.equal(roundRepFromPct(0.6, 5), 3); // floor(3)=3
+  });
+
+  it("returns the max itself when max is below 3", () => {
+    assert.equal(roundRepFromPct(0.6, 2), 2);
+    assert.equal(roundRepFromPct(0.5, 1), 1);
   });
 });
 
-describe("roundReps (spec §1.2 descending)", () => {
-  it("produces a non-increasing 5-round sequence", () => {
-    const r = roundReps(10);
-    assert.equal(r.length, 5);
-    assert.deepEqual(r, [10, 9, 9, 8, 8]);
-    for (let i = 1; i < r.length; i++) {
-      assert.ok(r[i]! <= r[i - 1]!, "non-increasing");
+describe("microcycle position & day type", () => {
+  it("wraps a 1-based day counter into 1..7", () => {
+    assert.equal(microPosOf(1), 1);
+    assert.equal(microPosOf(7), 7);
+    assert.equal(microPosOf(8), 1);
+    assert.equal(microPosOf(11), 4);
+    assert.equal(microPosOf(14), 7);
+  });
+
+  it("labels progressive / hold / technical days", () => {
+    for (const p of [1, 2, 3, 4, 5]) {
+      assert.equal(dayTypeFor(p), "progressive");
+    }
+    assert.equal(dayTypeFor(6), "hold");
+    assert.equal(dayTypeFor(7), "technical");
+    assert.equal(dayTypeFor(13), "hold"); // pos 6
+  });
+});
+
+describe("planForDay (methodology §Step 1–3)", () => {
+  // The intermediate worked example (max = 25) has no first-day taper, so it
+  // matches the algorithm exactly for days 1–6.
+  const max = 25;
+
+  it("day 1 is the plain base prescription", () => {
+    const p = planForDay(max, 1);
+    assert.equal(p.type, "progressive");
+    assert.equal(p.microPos, 1);
+    assert.deepEqual(p.rounds, [15, 15, 13, 13, 12]);
+    assert.equal(p.total, 68);
+  });
+
+  it("progressive days add the cumulative bumps from the examples", () => {
+    assert.deepEqual(planForDay(max, 2).rounds, [15, 15, 13, 13, 13]); // +R5
+    assert.deepEqual(planForDay(max, 3).rounds, [16, 15, 13, 13, 13]); // +R1
+    assert.deepEqual(planForDay(max, 4).rounds, [16, 16, 13, 13, 13]); // +R2
+    assert.deepEqual(planForDay(max, 5).rounds, [16, 16, 14, 13, 13]); // +R3
+  });
+
+  it("day 6 holds at the day-5 values", () => {
+    assert.deepEqual(planForDay(max, 6).rounds, planForDay(max, 5).rounds);
+    assert.equal(planForDay(max, 6).type, "hold");
+  });
+
+  it("day 7 is a lighter technical day", () => {
+    const p = planForDay(max, 7);
+    assert.equal(p.type, "technical");
+    assert.deepEqual(p.rounds, [12, 12, 11, 11, 10]); // 50/50/45/45/40, floored
+    assert.ok(p.total < planForDay(max, 6).total);
+  });
+
+  it("matches the beginner technical day exactly (max 10)", () => {
+    assert.deepEqual(planForDay(10, 7).rounds, [5, 5, 4, 4, 4]);
+  });
+
+  it("always yields 5 rounds and honours the bands at low max", () => {
+    for (let pos = 1; pos <= 7; pos++) {
+      const p = planForDay(4, pos);
+      assert.equal(p.rounds.length, SESSION_ROUNDS);
+      // cap floor(0.7*4)=2 is below the 3-floor, so everything sits at 3.
+      assert.ok(p.rounds.every((r) => r === MIN_ROUND_REPS));
     }
   });
 
-  it("keeps round 1 at 100% of the target", () => {
-    assert.equal(roundReps(8)[0], 8);
-    assert.equal(roundReps(12)[0], 12);
-  });
-
-  it("never goes below 1", () => {
-    assert.ok(roundReps(2).every((v) => v >= 1));
+  it("re-clamps so an increment cannot break the cap", () => {
+    // max 8: cap floor(5.6)=5. Base R1 floor(4.8)=4, +1 = 5 (at cap, not over).
+    assert.ok(planForDay(8, 5).rounds.every((r) => r <= 5 && r >= MIN_ROUND_REPS));
   });
 });
 
-describe("planForWeekday", () => {
-  it("Monday is a full Standard session", () => {
-    const p = planForWeekday(10, 1);
-    assert.equal(p.type, "standard");
-    assert.equal(p.target, 10);
-    assert.deepEqual(p.rounds, [10, 9, 9, 8, 8]);
-    assert.equal(p.total, 44);
-  });
-
-  it("Thursday is an Easy session (lower volume)", () => {
-    const p = planForWeekday(10, 4);
-    assert.equal(p.type, "easy");
-    assert.equal(p.target, 7);
-    assert.ok(p.total < planForWeekday(10, 1).total);
+describe("advanceDayNumber", () => {
+  it("advances by one and never drops below 2", () => {
+    assert.equal(advanceDayNumber(1), 2);
+    assert.equal(advanceDayNumber(7), 8); // 8 wraps to microPos 1
+    assert.equal(microPosOf(advanceDayNumber(7)), 1);
   });
 });
 
-describe("evaluateWeek (spec §2.1)", () => {
-  const monday = new Date(2026, 6, 6); // Mon Jul 6
-  const prevWeek = [
-    "2026-06-29", "2026-06-30", "2026-07-01",
-    "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05",
-  ];
-
-  function weekData(overrides: Partial<AppData> = {}): AppData {
-    return makeData({ lastWeekEvaluated: "2026-06-29", ...overrides });
-  }
-
-  it("returns null when the week is already evaluated", () => {
-    assert.equal(
-      evaluateWeek(makeData({ lastWeekEvaluated: "2026-07-06" }), monday),
-      null,
-    );
-  });
-
-  it("adds +1 after 6+ complete sessions at RPE ≤ 7", () => {
-    const data = weekData({
-      dailyTarget: 8,
-      sessions: prevWeek.slice(0, 6).map((d) => session({ date: d, rpe: 6 })),
-    });
-    const out = evaluateWeek(data, monday);
-    assert.equal(out?.dailyTarget, 9);
-    assert.equal(out?.lastWeekEvaluated, "2026-07-06");
-  });
-
-  it("does not increase past the level cap", () => {
-    // level 2 cap = 10
-    const data = weekData({
-      dailyTarget: 10,
-      sessions: prevWeek.slice(0, 7).map((d) => session({ date: d, rpe: 6 })),
-    });
-    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 10);
-  });
-
-  it("does not increase with only 5 sessions", () => {
-    const data = weekData({
-      dailyTarget: 8,
-      sessions: prevWeek.slice(0, 5).map((d) => session({ date: d, rpe: 6 })),
-    });
-    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 8); // hold
-  });
-
-  it("drops 1 when average RPE ≥ 8", () => {
-    const data = weekData({
-      dailyTarget: 8,
-      sessions: prevWeek.slice(0, 6).map((d) => session({ date: d, rpe: 9 })),
-    });
-    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 7);
-  });
-
-  it("drops 1 when rounds were left unfinished", () => {
-    const data = weekData({
-      dailyTarget: 8,
-      sessions: prevWeek
-        .slice(0, 6)
-        .map((d) => session({ date: d, rpe: 6, roundsCompleted: 3 })),
-    });
-    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 7);
-  });
-
-  it("never drops below 2", () => {
-    const data = weekData({
-      dailyTarget: 2,
-      sessions: [session({ date: "2026-06-29", rpe: 10 })],
-    });
-    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 2);
-  });
-
-  it("holds and moves the marker when no sessions were done", () => {
-    const data = weekData({ dailyTarget: 8, sessions: [] });
-    const out = evaluateWeek(data, monday);
-    assert.equal(out?.dailyTarget, 8);
-    assert.equal(out?.lastWeekEvaluated, "2026-07-06");
-  });
-
-  it("ignores sessions outside the previous week", () => {
-    const data = weekData({
-      dailyTarget: 8,
-      sessions: [
-        session({ date: "2026-06-22", rpe: 10 }), // week before
-        session({ date: "2026-07-06", rpe: 10 }), // current week
+describe("max, streak & re-test scheduling", () => {
+  it("currentMaxReps / bestMax read the max tests", () => {
+    const data = makeData({
+      maxTests: [
+        { date: "2026-06-01", reps: 18 },
+        { date: "2026-06-15", reps: 22 },
+        { date: "2026-06-29", reps: 20 },
       ],
     });
-    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 8); // no prev-week data
+    assert.equal(currentMaxReps(data), 20); // latest
+    assert.equal(bestMax(data), 22); // best ever
   });
 
-  it("scales the session-count bar to a 5-day habit plan (spec gap)", () => {
-    // 4 of 5 possible sessions — round(5 * 0.85) = 4, so this now qualifies;
-    // under the old flat "≥6" rule a 5-day plan could never progress at all.
-    const data = weekData({
-      dailyTarget: 8,
-      settings: { ...defaultSettings(50), habitDaysPerWeek: 5 },
-      sessions: prevWeek.slice(0, 4).map((d) => session({ date: d, rpe: 6 })),
-    });
-    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 9);
-  });
-
-  it("scales the session-count bar to a 6-day habit plan (spec gap)", () => {
-    // round(6 * 0.85) = 5, one less than the flat "≥6" rule required.
-    const data = weekData({
-      dailyTarget: 8,
-      settings: { ...defaultSettings(50), habitDaysPerWeek: 6 },
-      sessions: prevWeek.slice(0, 5).map((d) => session({ date: d, rpe: 6 })),
-    });
-    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 9);
-  });
-
-  it("withholds the increase when any session flagged pain (spec §2.1/§3.1)", () => {
-    const data = weekData({
-      dailyTarget: 8,
-      sessions: [
-        ...prevWeek.slice(0, 5).map((d) => session({ date: d, rpe: 6 })),
-        session({ date: prevWeek[6], rpe: 6, painFlags: ["wrist"] }),
-      ],
-    });
-    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 8); // held, not +1
-  });
-
-  it("drops 1 when pain is flagged more than once", () => {
-    const data = weekData({
-      dailyTarget: 8,
-      sessions: prevWeek
-        .slice(0, 6)
-        .map((d, i) =>
-          session({ date: d, rpe: 6, painFlags: i < 2 ? ["shoulder"] : [] }),
-        ),
-    });
-    assert.equal(evaluateWeek(data, monday)?.dailyTarget, 7);
-  });
-});
-
-describe("requiredSessionsForProgress (habit-days scaling)", () => {
-  it("keeps the spec's 7-day default at 6", () => {
-    assert.equal(requiredSessionsForProgress(7), 6);
-  });
-
-  it("scales down for shorter habit-day plans instead of staying fixed", () => {
-    assert.equal(requiredSessionsForProgress(6), 5);
-    assert.equal(requiredSessionsForProgress(5), 4);
-  });
-});
-
-describe("isHabitDay", () => {
-  function settings(n: number): Settings {
-    return { ...makeData().settings, habitDaysPerWeek: n };
-  }
-  it("7 = every day, 6 = skip Sunday, 5 = weekdays", () => {
-    assert.equal(isHabitDay(settings(7), 0), true);
-    assert.equal(isHabitDay(settings(6), 0), false);
-    assert.equal(isHabitDay(settings(6), 3), true);
-    assert.equal(isHabitDay(settings(5), 6), false);
-    assert.equal(isHabitDay(settings(5), 2), true);
-  });
-});
-
-describe("streak and re-test scheduling", () => {
   it("currentStreak counts consecutive days ending today", () => {
     const s = [
       session({ id: "a", date: "2026-07-04" }),
@@ -339,16 +214,40 @@ describe("streak and re-test scheduling", () => {
     assert.equal(currentStreak(s, "2026-07-06"), 1);
   });
 
-  it("maxTestDue after 21 days, not before", () => {
+  it("maxTestDue after RETEST_DAYS, not before", () => {
     const today = dateKey();
     assert.equal(
-      maxTestDue(makeData({ maxTests: [{ date: addDays(today, -20), level: 2 as Level, reps: 10 }] })),
+      maxTestDue(makeData({ maxTests: [{ date: addDays(today, -(RETEST_DAYS - 1)), reps: 12 }] })),
       false,
     );
     assert.equal(
-      maxTestDue(makeData({ maxTests: [{ date: addDays(today, -21), level: 2 as Level, reps: 10 }] })),
+      maxTestDue(makeData({ maxTests: [{ date: addDays(today, -RETEST_DAYS), reps: 12 }] })),
       true,
     );
     assert.equal(maxTestDue(makeData({ maxTests: [] })), true);
+  });
+});
+
+describe("isHabitDay", () => {
+  function settings(n: number): Settings {
+    return { ...makeData().settings, habitDaysPerWeek: n };
+  }
+  it("7 = every day, 6 = skip Sunday, 5 = weekdays", () => {
+    assert.equal(isHabitDay(settings(7), 0), true);
+    assert.equal(isHabitDay(settings(6), 0), false);
+    assert.equal(isHabitDay(settings(6), 3), true);
+    assert.equal(isHabitDay(settings(5), 6), false);
+    assert.equal(isHabitDay(settings(5), 2), true);
+  });
+});
+
+describe("createInitialData", () => {
+  it("starts at microcycle day 1 with one max test", () => {
+    const d = makeData();
+    assert.equal(d.dayNumber, 1);
+    assert.equal(d.maxTests.length, 1);
+    assert.equal(d.maxTests[0]?.reps, 20);
+    assert.equal(d.sessions.length, 0);
+    assert.equal(MICROCYCLE_DAYS, 7);
   });
 });

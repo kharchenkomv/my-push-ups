@@ -14,20 +14,16 @@ import {
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
-  DAY_LABELS,
-  LEVEL_INFO,
+  DAY_TYPE_LABEL,
+  MICROCYCLE_DAYS,
   RETEST_DAYS,
   SESSION_ROUNDS,
-  SESSION_TYPE_LABEL,
-  addDays,
-  dateKey,
+  currentMaxReps,
   daysSinceMaxTest,
   formatSeconds,
-  isHabitDay,
+  microPosOf,
   planForDate,
-  planForWeekday,
-  sessionOn,
-  weekStartKey,
+  planForDay,
 } from "@/lib/training";
 
 export default function PlanScreen() {
@@ -38,15 +34,13 @@ export default function PlanScreen() {
   if (!data) return null;
 
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
-  const today = dateKey();
-  const weekStart = weekStartKey();
   const daysSince = daysSinceMaxTest(data);
   const retestIn =
     daysSince === null ? 0 : Math.max(0, RETEST_DAYS - daysSince);
 
-  const todayPlan = planForDate(data, today);
-  const progressionMessage =
-    "Train 6+ days next week with all rounds done and effort 7 or lower, and each round's target goes up by 1. Hard weeks (effort 8+) ease it back.";
+  const max = currentMaxReps(data);
+  const todayPlan = planForDate(data);
+  const currentPos = microPosOf(data.dayNumber);
 
   return (
     <ScrollView
@@ -59,37 +53,29 @@ export default function PlanScreen() {
       <ScreenTitle subtitle="Your programme">Plan</ScreenTitle>
 
       <Card>
-        <Kicker color={colors.primary}>Current level</Kicker>
+        <Kicker color={colors.primary}>Current max</Kicker>
         <Text style={[styles.levelName, { color: colors.foreground }]}>
-          {LEVEL_INFO[data.level]?.name}
+          {max} push-ups
         </Text>
         <Text style={[styles.levelDesc, { color: colors.mutedForeground }]}>
-          {LEVEL_INFO[data.level]?.description}
+          Every round is a submaximal share of this. Re-test to move it — and
+          every target moves with it.
         </Text>
       </Card>
 
-      <SectionTitle>This week</SectionTitle>
+      <SectionTitle>The 7-day cycle</SectionTitle>
       <Card style={styles.listCard}>
-        {Array.from({ length: 7 }, (_, i) => {
-          const key = addDays(weekStart, i);
-          const wd = (i + 1) % 7;
-          const t = isHabitDay(data.settings, wd);
-          const session = sessionOn(data.sessions, key);
-          const isToday = key === today;
-          const isPast = key < today;
-          const status = session
-            ? "done"
-            : isToday
-              ? "due"
-              : isPast
-                ? "missed"
-                : "upcoming";
+        {Array.from({ length: MICROCYCLE_DAYS }, (_, i) => {
+          const pos = i + 1;
+          const dayPlan = planForDay(max, pos);
+          const isCurrent = pos === currentPos;
+          const isPast = pos < currentPos;
           return (
             <View
-              key={key}
+              key={pos}
               style={[
                 styles.dayRow,
-                i < 6
+                i < MICROCYCLE_DAYS - 1
                   ? {
                       borderBottomColor: colors.border,
                       borderBottomWidth: StyleSheet.hairlineWidth,
@@ -101,31 +87,31 @@ export default function PlanScreen() {
                 style={[
                   styles.dayLabel,
                   {
-                    color: isToday ? colors.primary : colors.mutedForeground,
-                    fontFamily: isToday ? font.bodySemi : font.bodyMedium,
+                    color: isCurrent ? colors.primary : colors.mutedForeground,
+                    fontFamily: isCurrent ? font.bodySemi : font.bodyMedium,
                   },
                 ]}
               >
-                {DAY_LABELS[wd]}
+                Day {pos}
               </Text>
               <View style={styles.dayInfo}>
                 <Text
                   style={[
                     styles.dayType,
-                    { color: t ? colors.foreground : colors.mutedForeground },
+                    {
+                      color: isCurrent
+                        ? colors.foreground
+                        : colors.mutedForeground,
+                    },
                   ]}
                 >
-                  {t
-                    ? `${SESSION_TYPE_LABEL[planForWeekday(data.dailyTarget, wd).type]} · ${planForWeekday(data.dailyTarget, wd).total} reps`
-                    : "Rest"}
+                  {DAY_TYPE_LABEL[dayPlan.type]} · {dayPlan.total} reps
                 </Text>
               </View>
-              {status === "done" ? (
-                <Feather name="check" size={16} color={colors.success} />
-              ) : status === "due" ? (
+              {isCurrent ? (
                 <View style={[styles.dueDot, { backgroundColor: colors.primary }]} />
-              ) : status === "missed" && t ? (
-                <Feather name="minus" size={14} color={colors.mutedForeground} />
+              ) : isPast ? (
+                <Feather name="check" size={16} color={colors.success} />
               ) : (
                 <View style={{ width: 16 }} />
               )}
@@ -137,8 +123,8 @@ export default function PlanScreen() {
       <SectionTitle>Today's prescription</SectionTitle>
       <Card style={styles.listCard}>
         <PrescriptionRow
-          label="Session"
-          value={`${SESSION_TYPE_LABEL[todayPlan.type]} · ${todayPlan.total} reps`}
+          label="Day"
+          value={`${DAY_TYPE_LABEL[todayPlan.type]} · day ${todayPlan.microPos} of ${MICROCYCLE_DAYS}`}
         />
         <PrescriptionRow
           label={`${SESSION_ROUNDS} rounds`}
@@ -158,7 +144,10 @@ export default function PlanScreen() {
       <SectionTitle>How you progress</SectionTitle>
       <View style={styles.noteStack}>
         <Callout icon="trending-up" tone={colors.primary}>
-          {progressionMessage}
+          Targets ease up across the cycle — five progressive days, a hold day,
+          then a lighter technical day — and reset each time it repeats. Real
+          progress comes from re-testing: as your max climbs, every round climbs
+          with it.
         </Callout>
         <Callout
           icon="refresh-cw"

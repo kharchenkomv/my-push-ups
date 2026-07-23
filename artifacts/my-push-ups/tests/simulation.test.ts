@@ -1,21 +1,17 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  addDays,
+  advanceDayNumber,
   createInitialData,
-  dailyTargetFor,
-  evaluateWeek,
-  keyToDate,
-  planForWeekday,
+  microPosOf,
+  planForDay,
   sanitizeImport,
-  weekStartKey,
-  SESSION_ROUNDS,
+  MICROCYCLE_DAYS,
 } from "../lib/training";
-import type { AppData, SessionEntry } from "../lib/types";
+import type { AppData } from "../lib/types";
 
 function freshData(overrides: Partial<AppData> = {}): AppData {
   const base = createInitialData({
-    level: 2,
     maxReps: 20,
     health: { cardio: false, joints: false, pain: false, acknowledged: true },
     goalReps: 50,
@@ -23,111 +19,71 @@ function freshData(overrides: Partial<AppData> = {}): AppData {
   return { ...base, ...overrides };
 }
 
-let counter = 0;
-function logSession(
-  data: AppData,
-  date: string,
-  opts: { rpe: number; roundsCompleted?: number } = { rpe: 6 },
-): AppData {
-  const s: SessionEntry = {
-    id: `sim-${counter++}`,
-    date,
-    level: data.level,
-    targetReps: data.dailyTarget,
-    roundsPlanned: SESSION_ROUNDS,
-    roundsCompleted: opts.roundsCompleted ?? SESSION_ROUNDS,
-    repsPerRound: [data.dailyTarget, data.dailyTarget],
-    rpe: opts.rpe,
-    painFlags: [],
-  };
-  return { ...data, sessions: [...data.sessions, s] };
-}
-
-const WEEK1_MONDAY = "2026-06-01"; // a Monday
-
-describe("weekly progression simulation", () => {
-  it("adds +1/week with 6 clean sessions, capped at the level cap", () => {
-    let data = freshData({
-      dailyTarget: 6,
-      lastWeekEvaluated: weekStartKey(keyToDate(WEEK1_MONDAY)),
-    });
-    const perWeek: number[] = [];
-    for (let week = 0; week < 5; week++) {
-      for (let d = 0; d < 6; d++) {
-        data = logSession(data, addDays(WEEK1_MONDAY, week * 7 + d), { rpe: 6 });
-      }
-      const nextMonday = keyToDate(addDays(WEEK1_MONDAY, (week + 1) * 7));
-      const out = evaluateWeek(data, nextMonday);
-      assert.ok(out, `week ${week + 1} should evaluate`);
-      data = { ...data, ...out };
-      // a second call the same week is a no-op
-      assert.equal(evaluateWeek(data, nextMonday), null);
-      perWeek.push(data.dailyTarget);
+describe("microcycle simulation", () => {
+  it("completing sessions walks the 7-day cycle and repeats it", () => {
+    let day = 1;
+    const positions: number[] = [];
+    for (let i = 0; i < 9; i++) {
+      positions.push(microPosOf(day));
+      day = advanceDayNumber(day); // completing a session advances the cycle
     }
-    // 6 -> 7,8,9,10, then capped at 10 (level 2)
-    assert.deepEqual(perWeek, [7, 8, 9, 10, 10]);
+    // 1..7 then wraps back to 1, 2
+    assert.deepEqual(positions, [1, 2, 3, 4, 5, 6, 7, 1, 2]);
   });
 
-  it("hard weeks push the target down but never below 2", () => {
-    let data = freshData({
-      dailyTarget: 5,
-      lastWeekEvaluated: weekStartKey(keyToDate(WEEK1_MONDAY)),
-    });
-    for (let week = 0; week < 5; week++) {
-      for (let d = 0; d < 6; d++) {
-        data = logSession(data, addDays(WEEK1_MONDAY, week * 7 + d), { rpe: 9 });
-      }
-      const out = evaluateWeek(data, keyToDate(addDays(WEEK1_MONDAY, (week + 1) * 7)));
-      data = { ...data, ...out };
-      assert.ok(data.dailyTarget >= 2);
-    }
-    assert.equal(data.dailyTarget, 2);
+  it("a skipped day repeats the same prescription (no advance)", () => {
+    const max = 20;
+    const dayNumber = 3;
+    const planned = planForDay(max, dayNumber);
+    // Skip: dayNumber is unchanged, so the next training day is identical.
+    const afterSkip = planForDay(max, dayNumber);
+    assert.deepEqual(afterSkip.rounds, planned.rounds);
+    // Only completing it advances the cycle.
+    assert.equal(microPosOf(advanceDayNumber(dayNumber)), 4);
   });
 
-  it("a sparse week holds, and re-opening the same week never re-applies", () => {
-    let data = freshData({
-      dailyTarget: 8,
-      lastWeekEvaluated: weekStartKey(keyToDate(WEEK1_MONDAY)),
-    });
-    data = logSession(data, addDays(WEEK1_MONDAY, 1), { rpe: 5 });
-    const monday2 = keyToDate(addDays(WEEK1_MONDAY, 7));
-    data = { ...data, ...evaluateWeek(data, monday2) };
-    assert.equal(data.dailyTarget, 8); // 1 session, RPE fine, all rounds done -> hold
-    for (let d = 0; d < 7; d++) {
-      assert.equal(evaluateWeek(data, keyToDate(addDays(WEEK1_MONDAY, 7 + d))), null);
-    }
+  it("volume rises within a cycle then eases on the hold/technical days", () => {
+    const max = 25;
+    const totals = Array.from({ length: MICROCYCLE_DAYS }, (_, i) =>
+      planForDay(max, i + 1).total,
+    );
+    // Progressive days 1..5 are non-decreasing.
+    for (let i = 1; i < 5; i++) assert.ok(totals[i]! >= totals[i - 1]!);
+    // Hold (day 6) equals day 5; technical (day 7) is the lightest of the week.
+    assert.equal(totals[5], totals[4]);
+    assert.ok(totals[6]! < totals[5]!);
+    assert.equal(Math.min(...totals), totals[6]);
   });
 
-  it("the descending plan totals stay reasonable as the target grows", () => {
-    // sanity: Standard-day total for a mid target
-    const p = planForWeekday(10, 1);
-    assert.equal(p.total, 44);
-    assert.ok(p.total <= SESSION_ROUNDS * 10);
+  it("a higher re-tested max lifts every round target", () => {
+    const before = planForDay(20, 1).rounds;
+    const after = planForDay(26, 1).rounds;
+    for (let i = 0; i < before.length; i++) {
+      assert.ok(after[i]! >= before[i]!);
+    }
+    assert.ok(after.reduce((a, b) => a + b, 0) > before.reduce((a, b) => a + b, 0));
   });
 });
 
 describe("import of malformed backups", () => {
   const validBackup = () => ({
-    level: 2,
-    maxTests: [{ date: "2026-06-01", level: 2, reps: 20 }],
+    maxTests: [{ date: "2026-06-01", reps: 20 }],
     sessions: [
       {
         id: "x1",
         date: "2026-06-02",
-        level: 2,
-        targetReps: 10,
+        targetReps: 15,
         roundsPlanned: 5,
         roundsCompleted: 5,
-        repsPerRound: [10, 9, 9, 8, 8],
+        repsPerRound: [15, 15, 13, 13, 12],
         rpe: 6,
         painFlags: [],
       },
     ],
-    dailyTarget: 10,
-    lastWeekEvaluated: "2026-06-01",
+    dayNumber: 3,
     settings: {
       habitDaysPerWeek: 7,
-      restSeconds: 60,
+      restSeconds: 90,
       goalReps: 50,
       sound: true,
       haptics: true,
@@ -137,13 +93,16 @@ describe("import of malformed backups", () => {
   it("accepts a valid backup and preserves state", () => {
     const out = sanitizeImport(validBackup());
     assert.ok(out);
-    assert.equal(out.level, 2);
-    assert.equal(out.dailyTarget, 10);
+    assert.equal(out.dayNumber, 3);
     assert.equal(out.sessions.length, 1);
-    assert.equal(out.settings.restSeconds, 60);
+    assert.equal(out.settings.restSeconds, 90);
+    // Levels are gone from the shape entirely.
+    assert.equal("level" in out, false);
+    assert.equal("level" in out.maxTests[0]!, false);
+    assert.equal("level" in out.sessions[0]!, false);
   });
 
-  it("keeps a valid elbow pain flag and drops unknown ones (spec §3.1)", () => {
+  it("keeps a valid elbow pain flag and drops unknown ones", () => {
     const backup = validBackup();
     const out = sanitizeImport({
       ...backup,
@@ -153,7 +112,7 @@ describe("import of malformed backups", () => {
     assert.deepEqual(out.sessions[0]?.painFlags, ["elbow"]);
   });
 
-  it("migrates a strength-era / ramp-era backup, dropping unknown fields", () => {
+  it("migrates a habit-era backup, dropping level / dailyTarget / weekly fields", () => {
     const legacy = {
       level: 2,
       maxTests: [{ date: "2026-06-01", level: 2, reps: 20 }],
@@ -161,7 +120,6 @@ describe("import of malformed backups", () => {
         {
           id: "st1",
           date: "2026-06-02",
-          track: "strength",
           level: 2,
           targetReps: 5,
           roundsPlanned: 5,
@@ -171,12 +129,10 @@ describe("import of malformed backups", () => {
           painFlags: [],
         },
       ],
-      roundRepsHabit: 4,
-      roundRepsStrength: 5,
-      lastHabitWeekEvaluated: "2026-06-01",
+      dailyTarget: 10,
+      lastWeekEvaluated: "2026-06-01",
       settings: {
         habitDaysPerWeek: 7,
-        strengthDays: [1, 3, 5],
         goalReps: 50,
         sound: true,
         haptics: true,
@@ -185,32 +141,34 @@ describe("import of malformed backups", () => {
     const out = sanitizeImport(legacy);
     assert.ok(out);
     assert.equal(out.sessions.length, 1);
-    assert.equal("track" in out.sessions[0]!, false);
-    assert.equal("roundRepsHabit" in out, false);
-    assert.equal("roundRepsStrength" in out, false);
-    assert.equal("strengthDays" in out.settings, false);
-    // dailyTarget derived from the latest max test: floor(20*0.5)=10, cap 10
-    assert.equal(out.dailyTarget, 10);
+    assert.equal("level" in out, false);
+    assert.equal("dailyTarget" in out, false);
+    assert.equal("lastWeekEvaluated" in out, false);
+    assert.equal("level" in out.sessions[0]!, false);
+    assert.equal("level" in out.maxTests[0]!, false);
+    // No stored dayNumber: synthesize from completed-session count (1 + 1).
+    assert.equal(out.dayNumber, 2);
     // rest gets the default when absent
-    assert.equal(out.settings.restSeconds, 60);
+    assert.equal(out.settings.restSeconds, 90);
   });
 
-  it("rejects non-objects, empty payloads, and bad levels", () => {
+  it("rejects non-objects, empty payloads, and missing arrays", () => {
     assert.equal(sanitizeImport(null), null);
     assert.equal(sanitizeImport({}), null);
-    assert.equal(sanitizeImport({ ...validBackup(), level: 5 }), null);
     assert.equal(sanitizeImport({ ...validBackup(), maxTests: [] }), null);
+    assert.equal(
+      sanitizeImport({ ...validBackup(), maxTests: undefined }),
+      null,
+    );
   });
 
-  it("clamps rest above 2 minutes and out-of-range dailyTarget", () => {
+  it("clamps rest above the 3-minute ceiling", () => {
     const over = sanitizeImport({
       ...validBackup(),
-      dailyTarget: 999,
       settings: { ...validBackup().settings, restSeconds: 9999 },
     });
     assert.ok(over);
-    assert.equal(over.settings.restSeconds, 120); // capped at 2 min
-    assert.equal(over.dailyTarget, 10); // capped at level-2 cap
+    assert.equal(over.settings.restSeconds, 180); // capped at 3 min
   });
 
   it("filters malformed sessions but keeps valid ones", () => {
@@ -222,11 +180,12 @@ describe("import of malformed backups", () => {
     assert.equal(out.sessions[0]?.id, "x1");
   });
 
-  it("derives dailyTarget from the latest max test when missing", () => {
+  it("defaults dayNumber to 1 for a backup with no sessions", () => {
     const backup = validBackup() as Record<string, unknown>;
-    delete backup.dailyTarget;
+    delete backup.dayNumber;
+    backup.sessions = [];
     const out = sanitizeImport(backup);
     assert.ok(out);
-    assert.equal(out.dailyTarget, dailyTargetFor(20, 2));
+    assert.equal(out.dayNumber, 1);
   });
 });

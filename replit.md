@@ -38,16 +38,17 @@ See root `CLAUDE.md` for the canonical local-dev commands and macOS-specific set
 ## Architecture decisions
 
 - All training logic is pure functions in `lib/training.ts` so it's testable and UI-independent
-- One session per calendar day; habit days set by `habitDaysPerWeek` (5 = weekdays, 6 = all but Sunday, 7 = daily)
-- One track only (habit), per the methodology spec in `attached_assets`. A daily session is 5 descending rounds (`ROUND_PERCENTS` = 100/90/85/80/75% of the session target). `dailyTarget` = floor(max×0.5) bounded [2, per-level cap] (`LEVEL_REP_CAP` = 15/12/10/8 for wall/incline/knee/full), stored in AppData and evolved by weekly progression.
-- Session type follows a fixed weekly pattern by weekday (`sessionTypeForWeekday`): Standard (100%), Lighter (~85%), Easy (~65%) — Mon Std, Tue Light, Wed Std, Thu Easy, Fri Std, Sat Light, Sun Std. `planForWeekday(dailyTarget, weekday)` yields `{type, target, rounds[5], total}`.
-- Weekly progression (`evaluateWeek`, run on load + foreground): +1 to `dailyTarget` after ≥`requiredSessionsForProgress(habitDaysPerWeek)` complete sessions at avg RPE≤7 and zero pain flags that week; −1 if avg RPE≥8, rounds left unfinished, or pain was flagged more than once; hold otherwise. `requiredSessionsForProgress` scales the spec's "6 of 7" bar to the user's chosen `habitDaysPerWeek` (5→4, 6→5, 7→6, via `round(n × 0.85)`) — the spec assumes a fixed 7-day week and doesn't address the 5/6-day settings, so a flat 6 made progression unreachable on those plans (fixed 2026-07-19). Capped at the level cap, floored at 2. Rest is user-set (`settings.restSeconds`, 30–120 s). Max re-test prompted after 21 days recomputes `dailyTarget` from the new max. Level changes only via Settings override.
-- Import/export is plain JSON via share sheet / paste; imports are sanitized field-by-field before persisting
+- **Strength engine** (adopted 2026-07-19, per `pushup_strength_methodology.md` — replaced the older habit engine and its `attached_assets` spec). It is **purely max-based**: one `maxTests` number drives everything; there is no fitness-level ladder (wall/incline/knee/full is gone).
+- A day's 5 rounds are a submaximal share of the current max: base `[60,60,55,55,50]%`, each round floored and held in the band `[3, floor(0.70×max)]` (`roundRepFromPct`). Real progression comes from re-testing the max, not from daily bumps.
+- **7-day microcycle** keyed on `dayNumber` (global 1-based counter in AppData), NOT weekday. `microPosOf(dayNumber)` → 1..7: days 1–5 progressive (cumulative bumps `+R5,+R1,+R2,+R3` on days 2–5), day 6 hold (= day 5), day 7 technical (`[50,50,45,45,40]%`). `planForDay(max, dayNumber)` yields `{dayNumber, microPos, type, rounds[5], total}`; `planForDate(data)` is today's.
+- **Progression = advance the microcycle, not a weekly scalar.** `completeSession` calls `advanceDayNumber` (+1) — and only on completion, so a skipped calendar day repeats the same prescription (methodology §Step 5). There is no `evaluateWeek`/`dailyTarget` anymore.
+- `habitDaysPerWeek` (5/6/7) still gates which calendar days prompt a session; the microcycle advances independently on each completed session. Rest is user-set (`settings.restSeconds`, up to 180 s — strength favours longer rests). Max re-test prompted after `RETEST_DAYS` = 14.
+- Import/export is plain JSON via share sheet / paste; `sanitizeImport` also **migrates habit-era backups** — drops `level`/`dailyTarget`/`lastWeekEvaluated` and synthesizes `dayNumber` from the completed-session count.
 
 ## Product
 
-- 4 tabs: Today (today's 5-round exercise card, streak/best/days-since stats), Plan (ramping week schedule + today's prescription + progression explainer), Progress (streak, push-ups-over-time chart, heatmap, milestones, test history), Settings (habit days, goal, level override, reminder, export/import/reset, health screening)
-- Onboarding includes a physician warning when any health question is answered yes
+- 4 tabs: Today (today's 5-round exercise card, streak/best/max stats), Plan (current max + the 7-day cycle map + today's prescription + progression explainer), Progress (streak, push-ups-over-time chart, dot grid, milestones, max-test history), Settings (habit days, goal, rest, reminder, export/import/reset, health screening — no level override)
+- Onboarding is welcome → goal → health check → max test (the level-picker step was removed with the strength engine); a physician warning shows when any health question is answered yes
 - Design language "Quiet Ritual" (adopted 2026-07-19, matching the sibling Habit-Visualizer
   app): cream `#fbf9f2` canvas, terracotta `#a4542f` primary, Playfair Display serif
   headings + Inter body text, hairline borders, no colored shadows. Full dark mode.
@@ -63,7 +64,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 ## Gotchas
 
 - Restart the Expo dev server after package installs; reminders don't fire in the web preview (guarded)
-- The methodology spec lives at `attached_assets/My_Push_Ups_–_Methodological_Specification_1783457021493.md`
-  — as of 2026-07-19 it doesn't document the `habitDaysPerWeek` setting or the pain-flag
-  progression rule described above; both are real product behavior the spec hasn't caught
-  up to yet
+- The live methodology is `pushup_strength_methodology.md` (repo root). The older
+  `attached_assets/My_Push_Ups_–_Methodological_Specification_*.md` describes the retired
+  habit engine and no longer matches the code — keep it only as history.
+- Where the strength spec's prose and worked examples disagree, the engine follows the
+  examples and the explicit Step 1–4 rules: increments `+R5,+R1,+R2,+R3`; `floor` everywhere
+  (so the technical-day examples that silently rounded differ ±1); the beginner "day-1 R5
+  taper" is not a rule; re-test window 14 days; the 3-rep floor wins over a sub-3 cap.

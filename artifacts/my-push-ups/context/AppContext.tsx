@@ -11,10 +11,8 @@ import React, {
 import { AppState } from "react-native";
 
 import {
+  advanceDayNumber,
   createInitialData,
-  dailyTargetFor,
-  evaluateWeek,
-  latestMaxTest,
   dateKey,
   newId,
   sanitizeImport,
@@ -22,7 +20,6 @@ import {
 import type {
   AppData,
   HealthAnswers,
-  Level,
   SessionEntry,
   Settings,
 } from "@/lib/types";
@@ -33,7 +30,6 @@ interface AppContextValue {
   data: AppData | null;
   loading: boolean;
   completeOnboarding: (params: {
-    level: Level;
     maxReps: number;
     health: HealthAnswers;
     goalReps: number;
@@ -41,8 +37,6 @@ interface AppContextValue {
   recordMaxTest: (reps: number) => Promise<void>;
   completeSession: (entry: Omit<SessionEntry, "id">) => Promise<void>;
   updateSettings: (patch: Partial<Settings>) => Promise<Settings | null>;
-  setLevel: (level: Level) => Promise<void>;
-  setHealth: (health: HealthAnswers) => Promise<void>;
   resetAll: () => Promise<void>;
   importData: (json: string) => Promise<boolean>;
   exportJson: () => string;
@@ -74,16 +68,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         if (raw) {
           // Sanitize on load: migrates data written by older app versions
-          // (roundRepsHabit / weekly-eval fields, strength-track data, pre-`days`
-          // reminder configs) to the current shape.
+          // (habit-era level / dailyTarget / weekly-eval fields, pre-`days`
+          // reminder configs) to the current microcycle shape.
           const parsed = sanitizeImport(JSON.parse(raw));
           if (parsed) {
-            // Run any pending weekly progression, then persist if the on-disk
-            // shape changed (migration and/or the weekly adjustment).
-            const weekly = evaluateWeek(parsed);
-            const next = weekly ? { ...parsed, ...weekly } : parsed;
-            setData(next);
-            if (JSON.stringify(next) !== raw) enqueueWrite(next);
+            setData(parsed);
+            // Persist if migration changed the on-disk shape.
+            if (JSON.stringify(parsed) !== raw) enqueueWrite(parsed);
           }
         }
       } catch {
@@ -97,8 +88,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [enqueueWrite]);
 
-  // Re-check the week boundary when the app returns to foreground so a
-  // rollover applies the weekly progression and screens refresh.
+  // Bump a tick on foreground so screens re-render and pick up date-derived
+  // state (e.g. whether a max re-test has come due).
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") setWakeTick((t) => t + 1);
@@ -125,20 +116,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [enqueueWrite],
   );
 
-  // Apply the weekly progression whenever the week rolls over while running.
-  useEffect(() => {
-    if (!data) return;
-    if (evaluateWeek(data)) {
-      mutate((prev) => {
-        const w = evaluateWeek(prev);
-        return w ? { ...prev, ...w } : prev;
-      });
-    }
-  }, [data, wakeTick, mutate]);
-
   const completeOnboarding = useCallback(
     async (params: {
-      level: Level;
       maxReps: number;
       health: HealthAnswers;
       goalReps: number;
@@ -154,12 +133,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (reps: number) => {
       await mutate((prev) => ({
         ...prev,
-        maxTests: [
-          ...prev.maxTests,
-          { date: dateKey(), level: prev.level, reps },
-        ],
-        // Re-test recalculates the daily target from the fresh max (spec §2.2).
-        dailyTarget: dailyTargetFor(reps, prev.level),
+        maxTests: [...prev.maxTests, { date: dateKey(), reps }],
+        // Round targets read the latest max directly, so nothing else to
+        // recompute here (methodology §Step 6).
         needsMaxTest: false,
       }));
     },
@@ -173,6 +149,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return {
           ...prev,
           sessions: [...prev.sessions, session],
+          // Advance the microcycle only on completion; a skipped day leaves
+          // dayNumber untouched so the same prescription repeats (§Step 5).
+          dayNumber: advanceDayNumber(prev.dayNumber),
         };
       });
     },
@@ -186,30 +165,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         settings: { ...prev.settings, ...patch },
       }));
       return dataRef.current?.settings ?? null;
-    },
-    [mutate],
-  );
-
-  const setLevel = useCallback(
-    async (level: Level) => {
-      await mutate((prev) => {
-        const test = latestMaxTest({ ...prev, level }, level);
-        return {
-          ...prev,
-          level,
-          needsMaxTest: !test,
-          ...(test
-            ? { dailyTarget: dailyTargetFor(test.reps, level) }
-            : {}),
-        };
-      });
-    },
-    [mutate],
-  );
-
-  const setHealth = useCallback(
-    async (health: HealthAnswers) => {
-      await mutate((prev) => ({ ...prev, health }));
     },
     [mutate],
   );
@@ -251,14 +206,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       recordMaxTest,
       completeSession,
       updateSettings,
-      setLevel,
-      setHealth,
       resetAll,
       importData,
       exportJson,
     }),
     // wakeTick is intentionally a dep: it changes the value identity on
-    // foreground so consumers re-render and pick up the new day's rep target.
+    // foreground so consumers re-render and pick up date-derived state.
     [
       data,
       loading,
@@ -267,8 +220,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       recordMaxTest,
       completeSession,
       updateSettings,
-      setLevel,
-      setHealth,
       resetAll,
       importData,
       exportJson,

@@ -146,7 +146,6 @@ function persisted(): AppData {
 
 function makeData(overrides: Partial<AppData> = {}): AppData {
   const base = createInitialData({
-    level: 2,
     maxReps: 10,
     health: { cardio: false, joints: false, pain: false, acknowledged: true },
     goalReps: 50,
@@ -159,11 +158,10 @@ function makeSessionInput(
 ): Omit<SessionEntry, "id"> {
   return {
     date: "2026-07-06",
-    level: 2,
-    targetReps: 4,
+    targetReps: 6,
     roundsPlanned: 5,
     roundsCompleted: 5,
-    repsPerRound: [4, 4, 4, 4, 4],
+    repsPerRound: [6, 6, 5, 5, 5],
     rpe: 6,
     painFlags: [],
     ...overrides,
@@ -196,7 +194,9 @@ describe("AppContext: completeSession", () => {
 
     const data = ctx.current!.data!;
     assert.equal(data.sessions.length, 1);
-    assert.equal(data.sessions[0]?.targetReps, 4);
+    assert.equal(data.sessions[0]?.targetReps, 6);
+    // Completing a session advances the microcycle (seed starts at day 1).
+    assert.equal(data.dayNumber, 2);
 
     // Persisted copy matches in-memory state exactly.
     assert.deepEqual(persisted(), data);

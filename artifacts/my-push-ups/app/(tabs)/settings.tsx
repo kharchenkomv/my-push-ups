@@ -16,7 +16,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
-  Callout,
   Card,
   Chip,
   PrimaryButton,
@@ -27,24 +26,18 @@ import {
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { rescheduleReminders } from "@/lib/notifications";
-import { DAY_LABELS, LEVEL_INFO, formatSeconds } from "@/lib/training";
-import type { Level, ReminderConfig, Settings } from "@/lib/types";
+import { DAY_LABELS, formatSeconds } from "@/lib/training";
+import type { ReminderConfig, Settings } from "@/lib/types";
 
 const GOALS = [20, 30, 50, 100];
-const REST_OPTIONS = [30, 45, 60, 90, 120]; // seconds; spec caps rest at 2 min
+// Strength training favours longer rests to keep set quality (methodology
+// §Core); the engine caps rest at 3 min (MAX_REST_SECONDS).
+const REST_OPTIONS = [45, 60, 90, 120, 180];
 
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const {
-    data,
-    updateSettings,
-    setLevel,
-    setHealth,
-    resetAll,
-    importData,
-    exportJson,
-  } = useApp();
+  const { data, updateSettings, resetAll, importData, exportJson } = useApp();
 
   const [importVisible, setImportVisible] = useState<boolean>(false);
   const [importText, setImportText] = useState<string>("");
@@ -56,21 +49,9 @@ export default function SettingsScreen() {
 
   const apply = async (patch: Partial<Settings>) => {
     const next = await updateSettings(patch);
-    if (next && ("habitReminder" in patch || "habitDaysPerWeek" in patch)) {
+    if (next && "habitReminder" in patch) {
       rescheduleReminders(next);
     }
-  };
-
-  const changeLevel = (lvl: Level) => {
-    if (lvl === data.level) return;
-    Alert.alert(
-      `Switch to ${LEVEL_INFO[lvl]?.name}?`,
-      "You may be asked to take a max test to size your plan.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Switch", onPress: () => setLevel(lvl) },
-      ],
-    );
   };
 
   const doExport = async () => {
@@ -116,25 +97,6 @@ export default function SettingsScreen() {
       <SectionTitle>Training</SectionTitle>
       <Card>
         <Text style={[styles.rowLabel, { color: colors.foreground }]}>
-          Habit days per week
-        </Text>
-        <View style={styles.chipRow}>
-          {[5, 6, 7].map((n) => (
-            <Chip
-              key={n}
-              label={`${n}`}
-              active={s.habitDaysPerWeek === n}
-              onPress={() => apply({ habitDaysPerWeek: n })}
-            />
-          ))}
-        </View>
-        <Text style={[styles.rowHint, { color: colors.mutedForeground }]}>
-          5 = weekdays, 6 = all but Sunday, 7 = every day.
-        </Text>
-      </Card>
-
-      <Card style={styles.cardGap}>
-        <Text style={[styles.rowLabel, { color: colors.foreground }]}>
           Rest between rounds
         </Text>
         <View style={styles.chipRow}>
@@ -148,7 +110,7 @@ export default function SettingsScreen() {
           ))}
         </View>
         <Text style={[styles.rowHint, { color: colors.mutedForeground }]}>
-          Up to 2:00 between the 5 rounds.
+          Longer rests keep each set strong. 1:30–2:00 suits strength work.
         </Text>
       </Card>
 
@@ -163,22 +125,6 @@ export default function SettingsScreen() {
               label={`${g}`}
               active={s.goalReps === g}
               onPress={() => apply({ goalReps: g })}
-            />
-          ))}
-        </View>
-      </Card>
-
-      <Card style={styles.cardGap}>
-        <Text style={[styles.rowLabel, { color: colors.foreground }]}>
-          Level override
-        </Text>
-        <View style={styles.chipRow}>
-          {LEVEL_INFO.map((info, i) => (
-            <Chip
-              key={info.short}
-              label={info.short}
-              active={data.level === i}
-              onPress={() => changeLevel(i as Level)}
             />
           ))}
         </View>
@@ -202,43 +148,8 @@ export default function SettingsScreen() {
           label="Sound"
           value={s.sound}
           onChange={(sound) => apply({ sound })}
-        />
-        <ToggleRow
-          label="Haptics"
-          value={s.haptics}
-          onChange={(haptics) => apply({ haptics })}
           last
         />
-      </Card>
-
-      <SectionTitle>Health</SectionTitle>
-      <Card>
-        <ToggleRow
-          label="Cardiovascular disease or uncontrolled blood pressure"
-          value={data.health.cardio}
-          onChange={(cardio) => setHealth({ ...data.health, cardio })}
-        />
-        <ToggleRow
-          label="Major joint or spine problems"
-          value={data.health.joints}
-          onChange={(joints) => setHealth({ ...data.health, joints })}
-        />
-        <ToggleRow
-          label="Current chest, shoulder, or wrist pain"
-          value={data.health.pain}
-          onChange={(pain) => setHealth({ ...data.health, pain })}
-          last
-        />
-        {data.health.cardio || data.health.joints || data.health.pain ? (
-          <Callout
-            icon="alert-triangle"
-            tone={colors.warning}
-            style={styles.warnGap}
-          >
-            Consult a physician or qualified health professional before
-            continuing this program.
-          </Callout>
-        ) : null}
       </Card>
 
       <SectionTitle>Data</SectionTitle>

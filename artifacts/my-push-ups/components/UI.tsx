@@ -1,11 +1,10 @@
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import React from "react";
 import {
-  Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type StyleProp,
   type ViewStyle,
@@ -156,19 +155,10 @@ export function PrimaryButton({
                 }
               : { bg: "transparent", fg: colors.mutedForeground, border: "transparent" };
 
-  const handlePress = () => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
-        () => undefined,
-      );
-    }
-    onPress();
-  };
-
   return (
     <Pressable
       testID={testID}
-      onPress={handlePress}
+      onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [
         styles.button,
@@ -198,16 +188,10 @@ export function Chip({
   testID?: string;
 }) {
   const colors = useColors();
-  const handlePress = () => {
-    if (Platform.OS !== "web") {
-      Haptics.selectionAsync().catch(() => undefined);
-    }
-    onPress();
-  };
   return (
     <Pressable
       testID={testID}
-      onPress={handlePress}
+      onPress={onPress}
       style={({ pressed }) => [
         styles.chip,
         {
@@ -271,6 +255,53 @@ export function StatCard({
           {caption}
         </Text>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * Large serif number field for entering a max-rep count. The user types the
+ * number directly rather than tapping a counter up one rep at a time.
+ */
+export function MaxRepsField({
+  value,
+  onChangeText,
+  autoFocus,
+  testID,
+}: {
+  value: string;
+  onChangeText: (t: string) => void;
+  autoFocus?: boolean;
+  testID?: string;
+}) {
+  const colors = useColors();
+  return (
+    <View style={styles.maxField}>
+      <TextInput
+        style={[
+          styles.maxFieldInput,
+          {
+            color: colors.foreground,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            borderRadius: colors.radius,
+          },
+        ]}
+        value={value}
+        onChangeText={(t) => onChangeText(t.replace(/[^0-9]/g, "").slice(0, 3))}
+        keyboardType="number-pad"
+        returnKeyType="done"
+        maxLength={3}
+        placeholder="0"
+        placeholderTextColor={colors.border}
+        selectTextOnFocus
+        autoFocus={autoFocus}
+        allowFontScaling={false}
+        testID={testID}
+      />
+      <Text style={[styles.maxFieldLabel, { color: colors.mutedForeground }]}>
+        reps
+      </Text>
     </View>
   );
 }
@@ -396,6 +427,26 @@ const styles = StyleSheet.create({
   statCaption: {
     fontSize: 12,
     fontFamily: font.body,
+  },
+
+  maxField: {
+    alignItems: "center",
+  },
+  maxFieldInput: {
+    fontFamily: font.display,
+    fontSize: 72,
+    lineHeight: 88,
+    textAlign: "center",
+    width: 200,
+    height: 128,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  maxFieldLabel: {
+    fontSize: 11,
+    fontFamily: font.bodyMedium,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    marginTop: 12,
   },
 
   callout: {

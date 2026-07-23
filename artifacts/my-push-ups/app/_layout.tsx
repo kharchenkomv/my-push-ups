@@ -14,7 +14,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
-import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -50,16 +49,11 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  // Play the launch animation on every open: on first mount (cold start) and
-  // again each time the app returns to the foreground (warm start).
+  // Play the launch animation once per cold start only. It plays when the JS
+  // mounts (i.e. the app is launched from its icon); returning from the
+  // background does not remount, so a warm resume does not replay it.
   const [showLaunchAnimation, setShowLaunchAnimation] = useState(true);
 
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") setShowLaunchAnimation(true);
-    });
-    return () => sub.remove();
-  }, []);
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,

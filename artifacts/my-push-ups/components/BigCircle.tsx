@@ -78,6 +78,9 @@ export function BigCircle({
 
   const center = (
     <View style={styles.center}>
+      {/* The countdown uses Inter tabular figures (equal width, equal height,
+          all on the baseline) so digits never look bigger/lower than each other
+          as the value ticks down. The static rep count keeps the serif. */}
       <Text
         style={[
           isRest ? styles.restValue : styles.workValue,
@@ -142,12 +145,15 @@ const styles = StyleSheet.create({
     fontFamily: font.display,
   },
   restValue: {
-    fontSize: 60,
+    fontSize: 58,
     lineHeight: 70,
-    fontFamily: font.display,
-    // Serif digits are proportional; a fixed box stops the countdown jittering.
-    width: 170,
+    fontFamily: font.bodySemi,
+    fontVariant: ["tabular-nums"],
+    letterSpacing: 1,
     textAlign: "center",
+    // The 4-char "m:ss" string is fixed width with tabular figures; a stable
+    // min width keeps the block centred even at the "0:09" boundary.
+    minWidth: 150,
   },
   sublabel: {
     fontSize: 11,

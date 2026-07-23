@@ -13,11 +13,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PlankMark } from "@/components/PlankMark";
-import { Callout, Chip, Kicker, PrimaryButton, font } from "@/components/UI";
+import { Callout, Chip, MaxRepsField, PrimaryButton, font } from "@/components/UI";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
-import { LEVEL_INFO } from "@/lib/training";
-import type { Level } from "@/lib/types";
 
 type Step = "welcome" | "setup" | "maxtest";
 
@@ -56,15 +54,17 @@ export default function OnboardingScreen() {
   const [cardio, setCardio] = useState<boolean>(false);
   const [joints, setJoints] = useState<boolean>(false);
   const [pain, setPain] = useState<boolean>(false);
-  const [level, setLevelState] = useState<Level | null>(null);
-  const [maxReps, setMaxReps] = useState<number>(8);
+  const [maxRepsText, setMaxRepsText] = useState<string>("");
 
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
   const bottomPad = Platform.OS === "web" ? 46 : insets.bottom + 12;
 
+  const maxReps = parseInt(maxRepsText, 10);
+  const maxValid = Number.isFinite(maxReps) && maxReps >= 1 && maxReps <= 999;
+
   const finish = async () => {
+    if (!maxValid) return;
     await completeOnboarding({
-      level: level ?? 1,
       maxReps,
       health: { cardio, joints, pain, acknowledged: true },
       goalReps: goal,
@@ -145,7 +145,6 @@ export default function OnboardingScreen() {
       >
         {step === "setup" && (
           <View>
-            <Kicker>Step one</Kicker>
             <Text style={[styles.sectionLabel, { color: colors.foreground }]}>
               What's your goal?
             </Text>
@@ -186,7 +185,6 @@ export default function OnboardingScreen() {
             />
 
             <View style={styles.sectionGap}>
-              <Kicker>Step two</Kicker>
               <Text style={[styles.sectionLabel, { color: colors.foreground }]}>
                 Quick health check
               </Text>
@@ -223,47 +221,10 @@ export default function OnboardingScreen() {
               </Callout>
             ) : null}
 
-            <View style={styles.sectionGap}>
-              <Kicker>Step three</Kicker>
-              <Text style={[styles.sectionLabel, { color: colors.foreground }]}>
-                Can you do 8 full push-ups with good form?
-              </Text>
-              <Text style={[styles.body, { color: colors.mutedForeground }]}>
-                Chest to near floor, straight body line, full lockout.
-              </Text>
-            </View>
-            <View style={styles.optionList}>
-              <OptionCard
-                label="Yes, easily — 8 or more"
-                selected={level === 3}
-                onPress={() => setLevelState(3)}
-                testID="level-card-3"
-              />
-              <OptionCard
-                label="A few, but not 8 with good form"
-                selected={level === 2}
-                onPress={() => setLevelState(2)}
-                testID="level-card-2"
-              />
-              <OptionCard
-                label="I can do knee push-ups only"
-                selected={level === 1}
-                onPress={() => setLevelState(1)}
-                testID="level-card-1"
-              />
-              <OptionCard
-                label="Not even one knee push-up yet"
-                selected={level === 0}
-                onPress={() => setLevelState(0)}
-                testID="level-card-0"
-              />
-            </View>
-
             <View style={styles.continueWrap}>
               <PrimaryButton
                 label="Continue"
                 onPress={() => setStep("maxtest")}
-                disabled={level === null}
                 testID="btn-setup-continue"
               />
             </View>
@@ -279,32 +240,24 @@ export default function OnboardingScreen() {
                 { color: colors.mutedForeground },
               ]}
             >
-              One set of {LEVEL_INFO[level ?? 1]?.name.toLowerCase()}. Stop the
-              moment your form breaks — never push to absolute failure.
+              One set of push-ups to your technical limit. Stop the moment your
+              form breaks — never push to absolute failure. This sizes your whole
+              plan, so type only the clean reps.
             </Text>
 
-            <View style={styles.tapCounter}>
-              <Text style={[styles.tapCounterValue, { color: colors.foreground }]}>
-                {maxReps}
-              </Text>
-              <Text
-                style={[styles.tapCounterLabel, { color: colors.mutedForeground }]}
-              >
-                reps so far
-              </Text>
+            <View style={styles.maxFieldWrap}>
+              <MaxRepsField
+                value={maxRepsText}
+                onChangeText={setMaxRepsText}
+                testID="input-onboarding-max"
+              />
             </View>
 
             <View style={styles.maxTestActions}>
               <PrimaryButton
-                label="+1 rep"
-                icon="plus"
-                onPress={() => setMaxReps((r) => r + 1)}
-                variant="outline"
-                testID="btn-maxtest-plus"
-              />
-              <PrimaryButton
                 label="That's my limit"
                 onPress={finish}
+                disabled={!maxValid}
                 testID="btn-maxtest-confirm"
               />
             </View>
@@ -345,99 +298,6 @@ function HealthToggle({
         trackColor={{ true: colors.primary, false: colors.input }}
         thumbColor="#ffffff"
       />
-    </View>
-  );
-}
-
-function OptionCard({
-  label,
-  selected,
-  onPress,
-  testID,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-  testID?: string;
-}) {
-  const colors = useColors();
-  return (
-    <Pressable
-      onPress={onPress}
-      testID={testID}
-      style={({ pressed }) => [
-        styles.optionCard,
-        {
-          backgroundColor: selected ? colors.accent : colors.card,
-          borderColor: selected ? colors.primary : colors.border,
-          borderRadius: colors.radius,
-          opacity: pressed ? 0.85 : 1,
-        },
-      ]}
-    >
-      <Text style={[styles.optionText, { color: colors.foreground }]}>
-        {label}
-      </Text>
-      <View
-        style={[
-          styles.optionMark,
-          {
-            backgroundColor: selected ? colors.primary : "transparent",
-            borderColor: selected ? colors.primary : colors.border,
-          },
-        ]}
-      >
-        {selected ? <Feather name="check" size={11} color="#ffffff" /> : null}
-      </View>
-    </Pressable>
-  );
-}
-
-export function Stepper({
-  value,
-  onChange,
-  step = 1,
-  format,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-  step?: number;
-  format?: (v: number) => string;
-}) {
-  const colors = useColors();
-  return (
-    <View style={styles.stepperRow}>
-      <Pressable
-        onPress={() => onChange(value - step)}
-        style={({ pressed }) => [
-          styles.stepperBtn,
-          {
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            opacity: pressed ? 0.7 : 1,
-          },
-        ]}
-        testID="stepper-minus"
-      >
-        <Feather name="minus" size={20} color={colors.foreground} />
-      </Pressable>
-      <Text style={[styles.stepperValue, { color: colors.foreground }]}>
-        {format ? format(value) : value}
-      </Text>
-      <Pressable
-        onPress={() => onChange(value + step)}
-        style={({ pressed }) => [
-          styles.stepperBtn,
-          {
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            opacity: pressed ? 0.7 : 1,
-          },
-        ]}
-        testID="stepper-plus"
-      >
-        <Feather name="plus" size={20} color={colors.foreground} />
-      </Pressable>
     </View>
   );
 }
@@ -585,40 +445,6 @@ const styles = StyleSheet.create({
   continueWrap: { marginTop: 40 },
 
   maxTestIntro: { textAlign: "center", maxWidth: 300 },
-  tapCounter: { alignItems: "center", marginVertical: 40 },
-  tapCounterValue: {
-    fontFamily: font.display,
-    fontSize: 96,
-    lineHeight: 110,
-  },
-  tapCounterLabel: {
-    fontSize: 11,
-    fontFamily: font.bodyMedium,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
+  maxFieldWrap: { marginVertical: 40 },
   maxTestActions: { width: "100%", maxWidth: 280, gap: 12 },
-
-  stepperRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 24,
-    marginTop: 12,
-  },
-  stepperBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepperValue: {
-    fontSize: 52,
-    lineHeight: 62,
-    fontFamily: font.display,
-    minWidth: 110,
-    textAlign: "center",
-  },
 });

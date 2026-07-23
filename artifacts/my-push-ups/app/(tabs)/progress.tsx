@@ -15,15 +15,14 @@ import { RepsChart } from "@/components/RepsChart";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
-  LEVEL_INFO,
   MILESTONES,
   addDays,
   bestMax,
+  currentMaxReps,
   currentStreak,
   dateKey,
   keyToDate,
 } from "@/lib/training";
-import type { Level } from "@/lib/types";
 
 export default function ProgressScreen() {
   const colors = useColors();
@@ -39,9 +38,8 @@ export default function ProgressScreen() {
     (a, s) => a + s.repsPerRound.reduce((x, y) => x + y, 0),
     0,
   );
-  const bestFull = bestMax(data, 3);
-  const bestCurrent = bestMax(data, data.level);
-  const milestoneBase = bestFull > 0 ? bestFull : 0;
+  const best = bestMax(data);
+  const milestoneBase = best;
 
   const today = dateKey();
   const start = addDays(today, -27);
@@ -70,11 +68,11 @@ export default function ProgressScreen() {
       <View style={styles.statRow}>
         <StatCard label="Day streak" value={streak} accent={colors.primary} />
         <StatCard label="Sessions" value={totalSessions} />
-        <StatCard label="Best max" value={bestCurrent} />
+        <StatCard label="Best max" value={best} />
       </View>
       <View style={[styles.statRow, styles.statRowGap]}>
         <StatCard label="Total reps" value={totalReps} />
-        <StatCard label="Level" value={LEVEL_INFO[data.level]?.short ?? "—"} />
+        <StatCard label="Current max" value={currentMaxReps(data)} />
       </View>
 
       <SectionTitle>Push-ups over time</SectionTitle>
@@ -194,7 +192,7 @@ export default function ProgressScreen() {
                 <Text
                   style={[styles.testLevel, { color: colors.mutedForeground }]}
                 >
-                  {LEVEL_INFO[t.level as Level]?.name}
+                  max push-ups
                 </Text>
               </View>
               <Text style={[styles.testDate, { color: colors.mutedForeground }]}>

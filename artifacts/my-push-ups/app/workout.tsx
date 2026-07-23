@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
-import * as Haptics from "expo-haptics";
 import {
   activateKeepAwakeAsync,
   deactivateKeepAwake,
@@ -19,14 +18,19 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BigCircle } from "@/components/BigCircle";
-import { Callout, Card, Kicker, PrimaryButton, font } from "@/components/UI";
-import { Stepper } from "@/app/onboarding";
+import {
+  Callout,
+  Card,
+  Kicker,
+  MaxRepsField,
+  PrimaryButton,
+  font,
+} from "@/components/UI";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import {
   SESSION_ROUNDS,
-  SESSION_TYPE_LABEL,
-  LEVEL_INFO,
+  DAY_TYPE_LABEL,
   dateKey,
   formatSeconds,
   planForDate,
@@ -90,27 +94,6 @@ function useRestSounds() {
   };
 }
 
-function useHaptic() {
-  const { data } = useApp();
-  const enabled = data?.settings.haptics ?? true;
-  return {
-    light: () => {
-      if (enabled && Platform.OS !== "web") {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
-          () => undefined,
-        );
-      }
-    },
-    success: () => {
-      if (enabled && Platform.OS !== "web") {
-        Haptics.notificationAsync(
-          Haptics.NotificationFeedbackType.Success,
-        ).catch(() => undefined);
-      }
-    },
-  };
-}
-
 /** Shared top bar for the workout flows: close on the left, quiet title. */
 function WorkoutBar({
   title,
@@ -154,7 +137,6 @@ function SessionFlow() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data, completeSession } = useApp();
-  const haptic = useHaptic();
   const sounds = useRestSounds();
 
   const plan = data ? planForDate(data) : null;
@@ -182,7 +164,6 @@ function SessionFlow() {
   };
 
   const adjustRep = (index: number, delta: number) => {
-    haptic.light();
     setReps((prev) =>
       prev.map((r, i) =>
         i === index ? Math.max(0, Math.min(MAX_REPS, r + delta)) : r,
@@ -208,7 +189,6 @@ function SessionFlow() {
   useEffect(() => {
     if (phase !== "rest") return;
     if (restLeft === 0) {
-      haptic.success();
       sounds.chime();
       setRound((r) => r + 1);
       setPhase("work");
@@ -225,7 +205,6 @@ function SessionFlow() {
   const currentTarget = rounds[reps.length] ?? rounds[rounds.length - 1] ?? 0;
 
   const completeRound = () => {
-    haptic.light();
     const nextReps = [...reps, currentTarget];
     setReps(nextReps);
     if (nextReps.length < totalRounds) {
@@ -263,15 +242,13 @@ function SessionFlow() {
     setSaving(true);
     await completeSession({
       date: dateKey(),
-      level: data.level,
-      targetReps: plan?.target ?? reps[0] ?? 0,
+      targetReps: plan?.rounds[0] ?? reps[0] ?? 0,
       roundsPlanned: totalRounds,
       roundsCompleted: reps.length,
       repsPerRound: reps,
       rpe,
       painFlags: pains,
     });
-    haptic.success();
     router.back();
   };
 
@@ -303,8 +280,7 @@ function SessionFlow() {
             ) : null}
 
             <Kicker>
-              {plan ? `${SESSION_TYPE_LABEL[plan.type]} · ` : ""}
-              {LEVEL_INFO[data.level]?.name}
+              {plan ? `${DAY_TYPE_LABEL[plan.type]} · Day ${plan.microPos}` : ""}
             </Kicker>
 
             <View style={styles.circleWrap}>
@@ -637,9 +613,7 @@ function MaxTestFlow() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data, recordMaxTest } = useApp();
-  const haptic = useHaptic();
-  const [phase, setPhase] = useState<"intro" | "input">("intro");
-  const [reps, setReps] = useState<number>(8);
+  const [text, setText] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
 
   if (!data) return null;
@@ -647,11 +621,13 @@ function MaxTestFlow() {
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
   const bottomPad = Platform.OS === "web" ? 46 : insets.bottom + 16;
 
+  const reps = parseInt(text, 10);
+  const valid = Number.isFinite(reps) && reps >= 1 && reps <= 999;
+
   const save = async () => {
-    if (saving) return;
+    if (saving || !valid) return;
     setSaving(true);
     await recordMaxTest(reps);
-    haptic.success();
     router.back();
   };
 
@@ -671,73 +647,28 @@ function MaxTestFlow() {
           styles.maxTestContent,
           { paddingBottom: bottomPad + 12 },
         ]}
+        keyboardShouldPersistTaps="handled"
       >
-        {phase === "intro" ? (
-          <View style={styles.maxTestBlock}>
-            <Text style={[styles.introBody, { color: colors.mutedForeground }]}>
-              One set of {LEVEL_INFO[data.level]?.name.toLowerCase()}. Stop the
-              moment your form breaks — never push to absolute failure.
-            </Text>
+        <View style={styles.maxTestBlock}>
+          <Text style={[styles.introBody, { color: colors.mutedForeground }]}>
+            One set of push-ups to your technical limit. Stop the moment your
+            form breaks — never push to absolute failure. Type the number of
+            clean reps you managed.
+          </Text>
 
-            <View style={styles.tapCounter}>
-              <Text style={[styles.tapCounterValue, { color: colors.foreground }]}>
-                {reps}
-              </Text>
-              <Text
-                style={[styles.tapCounterLabel, { color: colors.mutedForeground }]}
-              >
-                reps so far
-              </Text>
-            </View>
-
-            <View style={styles.maxTestActions}>
-              <PrimaryButton
-                label="+1 rep"
-                icon="plus"
-                onPress={() => {
-                  haptic.light();
-                  setReps((prev) => prev + 1);
-                }}
-                variant="outline"
-                testID="btn-maxtest-plus"
-              />
-              <PrimaryButton
-                label="That's my limit"
-                onPress={() => setPhase("input")}
-              />
-            </View>
+          <View style={styles.maxFieldWrap}>
+            <MaxRepsField value={text} onChangeText={setText} testID="input-maxtest" />
           </View>
-        ) : (
-          <View style={styles.maxTestBlock}>
-            <Text style={[styles.doneTitle, { color: colors.foreground }]}>
-              How many reps?
-            </Text>
-            <Text
-              style={[
-                styles.introBody,
-                { color: colors.mutedForeground, marginTop: 8 },
-              ]}
-            >
-              Confirm the number of reps you completed with good form.
-            </Text>
 
-            <View style={styles.stepperWrap}>
-              <Stepper
-                value={reps}
-                onChange={(v) => setReps(Math.max(1, Math.min(99, v)))}
-              />
-            </View>
-
-            <View style={styles.maxTestActions}>
-              <PrimaryButton
-                label="Save result"
-                onPress={save}
-                disabled={saving}
-                testID="btn-save-maxtest"
-              />
-            </View>
+          <View style={styles.maxTestActions}>
+            <PrimaryButton
+              label="Save result"
+              onPress={save}
+              disabled={!valid || saving}
+              testID="btn-save-maxtest"
+            />
           </View>
-        )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -912,18 +843,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     maxWidth: 300,
   },
-  tapCounter: { alignItems: "center", marginVertical: 36 },
-  tapCounterValue: {
-    fontFamily: font.display,
-    fontSize: 96,
-    lineHeight: 110,
-  },
-  tapCounterLabel: {
-    fontSize: 11,
-    fontFamily: font.bodyMedium,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
-  stepperWrap: { marginVertical: 36 },
+  maxFieldWrap: { marginVertical: 36 },
   maxTestActions: { width: "100%", maxWidth: 280, gap: 12 },
 });
