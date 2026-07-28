@@ -260,19 +260,28 @@ export function StatCard({
 }
 
 /**
- * Large serif number field for entering a max-rep count. The user types the
- * number directly rather than tapping a counter up one rep at a time.
+ * Large number field for entering a max-test result. The user types the value
+ * directly rather than tapping a counter up one step at a time.
+ *
+ * The mask, length cap and unit label are supplied by the exercise, so a
+ * time-based hold can accept "1:30" without this component knowing about it.
  */
-export function MaxRepsField({
+export function MaxValueField({
   value,
   onChangeText,
   autoFocus,
   testID,
+  unitLabel = "reps",
+  mask = (t) => t.replace(/[^0-9]/g, "").slice(0, 3),
+  maxLength = 3,
 }: {
   value: string;
   onChangeText: (t: string) => void;
   autoFocus?: boolean;
   testID?: string;
+  unitLabel?: string;
+  mask?: (t: string) => string;
+  maxLength?: number;
 }) {
   const colors = useColors();
   return (
@@ -288,10 +297,10 @@ export function MaxRepsField({
           },
         ]}
         value={value}
-        onChangeText={(t) => onChangeText(t.replace(/[^0-9]/g, "").slice(0, 3))}
+        onChangeText={(t) => onChangeText(mask(t))}
         keyboardType="number-pad"
         returnKeyType="done"
-        maxLength={3}
+        maxLength={maxLength}
         placeholder="0"
         placeholderTextColor={colors.border}
         selectTextOnFocus
@@ -300,7 +309,7 @@ export function MaxRepsField({
         testID={testID}
       />
       <Text style={[styles.maxFieldLabel, { color: colors.mutedForeground }]}>
-        reps
+        {unitLabel}
       </Text>
     </View>
   );
@@ -433,9 +442,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   maxFieldInput: {
-    fontFamily: font.display,
-    fontSize: 72,
-    lineHeight: 88,
+    // Same face as the rest countdown: Inter tabular figures, so typed digits
+    // sit on one baseline at one width instead of dancing as they're entered.
+    fontFamily: font.bodySemi,
+    fontVariant: ["tabular-nums"],
+    letterSpacing: 1,
+    fontSize: 64,
+    lineHeight: 78,
     textAlign: "center",
     width: 200,
     height: 128,

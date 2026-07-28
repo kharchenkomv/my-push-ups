@@ -1,41 +1,13 @@
-import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import React from "react";
-import {
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import {
-  Callout,
-  Card,
-  Kicker,
-  PrimaryButton,
-  StatCard,
-  font,
-} from "@/components/UI";
+import { ExerciseTodayCard } from "@/components/exercise/ExerciseTodayCard";
+import { Callout, Card, Kicker, StatCard, font } from "@/components/UI";
 import { useApp } from "@/context/AppContext";
+import { useEnabledExercises, useTrainingDays } from "@/context/useExercise";
 import { useColors } from "@/hooks/useColors";
-import {
-  DAY_TYPE_LABEL,
-  MICROCYCLE_DAYS,
-  SESSION_ROUNDS,
-  bestMax,
-  currentMaxReps,
-  currentStreak,
-  dateKey,
-  daysSinceMaxTest,
-  formatSeconds,
-  isHabitDay,
-  maxTestDue,
-  planForDate,
-  sessionOn,
-} from "@/lib/training";
+import { isHabitDay } from "@/lib/state";
 
 function greeting(hour: number): string {
   if (hour < 12) return "Good morning";
@@ -46,22 +18,19 @@ function greeting(hour: number): string {
 export default function TodayScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { data } = useApp();
+  const views = useEnabledExercises();
+  const { streak } = useTrainingDays();
 
   if (!data) return null;
 
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
   const now = new Date();
-  const today = dateKey();
-  const weekday = now.getDay();
-  const habitDay = isHabitDay(data.settings, weekday);
-  const doneToday = sessionOn(data.sessions, today);
-  const testDue = data.needsMaxTest || maxTestDue(data);
-  const streak = currentStreak(data.sessions);
-  const best = bestMax(data);
-  const daysSince = daysSinceMaxTest(data);
-  const plan = planForDate(data);
+  const habitDay = isHabitDay(data.settings, now.getDay());
+  // With a single track there is nothing to disambiguate, so no name headers
+  // and the hero keeps carrying that exercise's own max.
+  const showsName = views.length > 1;
+  const solo = views.length === 1 ? views[0] : null;
 
   const dateLabel = now.toLocaleDateString(undefined, {
     weekday: "long",
@@ -83,9 +52,13 @@ export default function TodayScreen() {
           <Text style={[styles.heroTitle, { color: colors.foreground }]}>
             {greeting(now.getHours())}
           </Text>
-          <Text style={[styles.heroMeta, { color: colors.mutedForeground }]}>
-            Max {currentMaxReps(data)} push-ups
-          </Text>
+          {solo ? (
+            <Text style={[styles.heroMeta, { color: colors.mutedForeground }]}>
+              {solo.def.copy.heroMax(
+                solo.def.format.formatValue(solo.currentMax),
+              )}
+            </Text>
+          ) : null}
         </View>
         {streak > 0 ? (
           <View style={styles.streakWrap}>
@@ -99,70 +72,12 @@ export default function TodayScreen() {
         ) : null}
       </View>
 
-      {data.needsMaxTest ? (
-        <Card>
-          <Kicker color={colors.primary}>Calibration needed</Kicker>
-          <Text style={[styles.cardTitle, { color: colors.foreground }]}>
-            Take a max test
-          </Text>
-          <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
-            One set of push-ups to your technical limit — this sizes your whole
-            plan.
-          </Text>
-          <View style={styles.cardAction}>
-            <PrimaryButton
-              label="Start max test"
-              onPress={() =>
-                router.push({ pathname: "/workout", params: { track: "maxtest" } })
-              }
-              testID="btn-start-maxtest-today"
-            />
-          </View>
-        </Card>
-      ) : doneToday ? (
-        <Card>
-          <View style={styles.doneRow}>
-            <View style={[styles.doneMark, { borderColor: colors.success }]}>
-              <Feather name="check" size={18} color={colors.success} />
-            </View>
-            <View style={styles.doneText}>
-              <Text style={[styles.cardTitle, { color: colors.foreground }]}>
-                Done for today
-              </Text>
-              <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
-                {doneToday.repsPerRound.length}{" "}
-                {doneToday.repsPerRound.length === 1 ? "round" : "rounds"} ·{" "}
-                {doneToday.repsPerRound.reduce((a, b) => a + b, 0)} reps
-              </Text>
-            </View>
-          </View>
-        </Card>
-      ) : habitDay ? (
-        <Card>
-          <View style={styles.cardHead}>
-            <Kicker color={colors.primary}>
-              {DAY_TYPE_LABEL[plan.type]} · Day {plan.microPos} of{" "}
-              {MICROCYCLE_DAYS}
-            </Kicker>
-            <Kicker>~5 min</Kicker>
-          </View>
-          <Text style={[styles.rounds, { color: colors.foreground }]}>
-            {plan.rounds.join(" · ")}
-          </Text>
-          <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
-            {SESSION_ROUNDS} rounds · {plan.total} reps · rest{" "}
-            {formatSeconds(data.settings.restSeconds)}
-          </Text>
-          <View style={styles.cardAction}>
-            <PrimaryButton
-              label="Start exercise"
-              onPress={() =>
-                router.push({ pathname: "/workout", params: { track: "habit" } })
-              }
-              testID="btn-start-training"
-            />
-          </View>
-        </Card>
+      {habitDay ? (
+        <View style={styles.cardStack}>
+          {views.map((v) => (
+            <ExerciseTodayCard key={v.id} view={v} showsName={showsName} />
+          ))}
+        </View>
       ) : (
         <Card>
           <Kicker color={colors.rest}>Rest day</Kicker>
@@ -175,30 +90,31 @@ export default function TodayScreen() {
         </Card>
       )}
 
-      {!data.needsMaxTest && testDue ? (
-        <Pressable
-          onPress={() =>
-            router.push({ pathname: "/workout", params: { track: "maxtest" } })
-          }
-          testID="btn-retest-due"
-          style={styles.retest}
-        >
-          <Callout icon="refresh-cw" tone={colors.warning}>
-            Re-test due — tap to recalibrate your plan.
-          </Callout>
-        </Pressable>
-      ) : null}
-
       <View style={styles.statRow}>
         <StatCard label="Day streak" value={streak} />
-        <StatCard label="Best max" value={best} />
-        <StatCard label="Since test" value={daysSince ?? "—"} />
+        {solo ? (
+          <>
+            <StatCard label="Best max" value={solo.bestMax} />
+            <StatCard label="Since test" value={solo.daysSinceMaxTest ?? "—"} />
+          </>
+        ) : (
+          <StatCard
+            label="Sessions"
+            value={views.reduce((a, v) => a + v.state.sessions.length, 0)}
+          />
+        )}
       </View>
 
-      <Callout icon="alert-circle" style={styles.safety}>
-        If it hurts: try fists or push-up handles, raise the incline, or reduce
-        reps today. Never train through pain.
-      </Callout>
+      {solo ? (
+        <Callout icon="alert-circle" style={styles.safety}>
+          {solo.def.copy.safetyNote}
+        </Callout>
+      ) : (
+        <Callout icon="alert-circle" style={styles.safety}>
+          If it hurts: ease the movement, reduce the target, or rest today. Never
+          train through pain.
+        </Callout>
+      )}
     </ScrollView>
   );
 }
@@ -241,23 +157,12 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
 
-  cardHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
+  cardStack: { gap: 16 },
   cardTitle: {
     fontSize: 22,
     lineHeight: 28,
     fontFamily: font.display,
     marginTop: 8,
-  },
-  rounds: {
-    fontSize: 28,
-    lineHeight: 36,
-    fontFamily: font.display,
-    marginTop: 10,
   },
   cardBody: {
     fontSize: 14,
@@ -265,20 +170,6 @@ const styles = StyleSheet.create({
     fontFamily: font.body,
     marginTop: 6,
   },
-  cardAction: { marginTop: 20 },
-
-  doneRow: { flexDirection: "row", alignItems: "center", gap: 14 },
-  doneMark: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  doneText: { flex: 1 },
-
-  retest: { marginTop: 16 },
 
   statRow: {
     flexDirection: "row",

@@ -1,99 +1,40 @@
-import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import {
-  Card,
-  Kicker,
-  ScreenTitle,
-  SectionTitle,
-  StatCard,
-  font,
-} from "@/components/UI";
-import { RepsChart } from "@/components/RepsChart";
+import { ExerciseProgressSection } from "@/components/exercise/ExerciseProgressSection";
+import { Card, ScreenTitle, SectionTitle, StatCard, font } from "@/components/UI";
 import { useApp } from "@/context/AppContext";
+import { useEnabledExercises, useTrainingDays } from "@/context/useExercise";
 import { useColors } from "@/hooks/useColors";
-import {
-  MILESTONES,
-  addDays,
-  bestMax,
-  currentMaxReps,
-  currentStreak,
-  dateKey,
-  keyToDate,
-} from "@/lib/training";
+import { addDays, dateKey } from "@/lib/core";
 
 export default function ProgressScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { data } = useApp();
+  const views = useEnabledExercises();
+  const { dates, streak } = useTrainingDays();
 
   if (!data) return null;
 
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
-  const streak = currentStreak(data.sessions);
-  const totalSessions = data.sessions.length;
-  const totalReps = data.sessions.reduce(
-    (a, s) => a + s.repsPerRound.reduce((x, y) => x + y, 0),
-    0,
-  );
-  const best = bestMax(data);
-  const milestoneBase = best;
+  const showsName = views.length > 1;
+  const solo = views.length === 1 ? views[0] : null;
 
+  const totalSessions = views.reduce((a, v) => a + v.state.sessions.length, 0);
+
+  // Four calendar weeks ending today. A day counts if *any* enabled track was
+  // trained on it, which is the same thing as one track's own history at N=1.
+  const trained = new Set(dates);
   const today = dateKey();
-  const start = addDays(today, -27);
-  const sessionDays = new Set(data.sessions.map((s) => s.date));
-  const repsSeries = data.sessions.map((s) => ({
-    date: s.date,
-    total: s.repsPerRound.reduce((x, y) => x + y, 0),
-  }));
-
-  const recentTests = [...data.maxTests].reverse().slice(0, 6);
   const daysDone = Array.from({ length: 28 }, (_, i) =>
-    sessionDays.has(addDays(start, i)),
+    trained.has(addDays(today, -(27 - i))),
   );
   const doneCount = daysDone.filter(Boolean).length;
 
-  return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: topPad, paddingBottom: 130 },
-      ]}
-    >
-      <ScreenTitle subtitle="Consistency is the artwork">Progress</ScreenTitle>
-
-      <View style={styles.statRow}>
-        <StatCard label="Day streak" value={streak} accent={colors.primary} />
-        <StatCard label="Sessions" value={totalSessions} />
-        <StatCard label="Best max" value={best} />
-      </View>
-      <View style={[styles.statRow, styles.statRowGap]}>
-        <StatCard label="Total reps" value={totalReps} />
-        <StatCard label="Current max" value={currentMaxReps(data)} />
-      </View>
-
-      <SectionTitle>Push-ups over time</SectionTitle>
-      <Card>
-        {repsSeries.length === 0 ? (
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Finish your first session to start the graph.
-          </Text>
-        ) : (
-          <>
-            <Kicker>
-              {totalReps} reps · {totalSessions}{" "}
-              {totalSessions === 1 ? "session" : "sessions"}
-            </Kicker>
-            <View style={styles.chartWrap}>
-              <RepsChart points={repsSeries} />
-            </View>
-          </>
-        )}
-      </Card>
-
+  const weeksGrid = (
+    <>
       <SectionTitle>Last four weeks</SectionTitle>
       <Card>
         {/* Rows of quiet dots — days marked and days missed. */}
@@ -115,96 +56,48 @@ export default function ProgressScreen() {
           {doneCount} of 28 days trained
         </Text>
       </Card>
+    </>
+  );
 
-      <SectionTitle>Milestones</SectionTitle>
-      <Card style={styles.listCard}>
-        {MILESTONES.map((m, i) => {
-          const achieved = milestoneBase >= m;
-          return (
-            <View
-              key={m}
-              style={[
-                styles.milestoneRow,
-                i < MILESTONES.length - 1
-                  ? {
-                      borderBottomColor: colors.border,
-                      borderBottomWidth: StyleSheet.hairlineWidth,
-                    }
-                  : null,
-              ]}
-            >
-              <View
-                style={[
-                  styles.milestoneMark,
-                  {
-                    backgroundColor: achieved ? colors.success : "transparent",
-                    borderColor: achieved ? colors.success : colors.border,
-                  },
-                ]}
-              >
-                {achieved ? (
-                  <Feather name="check" size={11} color="#ffffff" />
-                ) : null}
-              </View>
-              <Text
-                style={[
-                  styles.milestoneText,
-                  {
-                    color: achieved
-                      ? colors.foreground
-                      : colors.mutedForeground,
-                  },
-                ]}
-              >
-                {m} continuous full push-ups
-              </Text>
-            </View>
-          );
-        })}
-      </Card>
+  return (
+    <ScrollView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: topPad, paddingBottom: 130 },
+      ]}
+    >
+      <ScreenTitle subtitle="Consistency is the artwork">Progress</ScreenTitle>
 
-      <SectionTitle>Max test history</SectionTitle>
-      {recentTests.length === 0 ? (
-        <Card>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Your training history starts with the first session.
-          </Text>
-        </Card>
-      ) : (
-        <Card style={styles.listCard}>
-          {recentTests.map((t, i) => (
-            <View
-              key={`${t.date}-${i}`}
-              style={[
-                styles.testRow,
-                i < recentTests.length - 1
-                  ? {
-                      borderBottomColor: colors.border,
-                      borderBottomWidth: StyleSheet.hairlineWidth,
-                    }
-                  : null,
-              ]}
-            >
-              <View style={styles.testInfo}>
-                <Text style={[styles.testReps, { color: colors.foreground }]}>
-                  {t.reps}
-                </Text>
-                <Text
-                  style={[styles.testLevel, { color: colors.mutedForeground }]}
-                >
-                  max push-ups
-                </Text>
-              </View>
-              <Text style={[styles.testDate, { color: colors.mutedForeground }]}>
-                {keyToDate(t.date).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                })}
-              </Text>
-            </View>
-          ))}
-        </Card>
-      )}
+      <View style={styles.statRow}>
+        <StatCard label="Day streak" value={streak} accent={colors.primary} />
+        <StatCard label="Sessions" value={totalSessions} />
+        {solo ? <StatCard label="Best max" value={solo.bestMax} /> : null}
+      </View>
+      {solo ? (
+        <View style={[styles.statRow, styles.statRowGap]}>
+          <StatCard
+            label={`Total ${solo.def.format.unitLabel}`}
+            value={solo.state.sessions.reduce(
+              (a, s) => a + s.valuePerRound.reduce((x, y) => x + y, 0),
+              0,
+            )}
+          />
+          <StatCard label="Current max" value={solo.currentMax} />
+        </View>
+      ) : null}
+
+      {views.map((v) => (
+        <ExerciseProgressSection
+          key={v.id}
+          view={v}
+          showsName={showsName}
+          interlude={solo ? weeksGrid : null}
+        />
+      ))}
+
+      {/* With several tracks the grid is shared, so it follows them all. */}
+      {solo ? null : weeksGrid}
     </ScrollView>
   );
 }
@@ -214,8 +107,6 @@ const styles = StyleSheet.create({
 
   statRow: { flexDirection: "row", gap: 10 },
   statRowGap: { marginTop: 10 },
-
-  chartWrap: { marginTop: 12 },
 
   dotGrid: {
     flexDirection: "row",
@@ -240,40 +131,4 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 16,
   },
-
-  listCard: { paddingVertical: 4 },
-
-  milestoneRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 13,
-  },
-  milestoneMark: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  milestoneText: { fontSize: 15, fontFamily: font.body },
-
-  emptyText: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: font.body,
-    textAlign: "center",
-  },
-
-  testRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 13,
-  },
-  testInfo: { flexDirection: "row", alignItems: "baseline", gap: 10 },
-  testReps: { fontSize: 22, fontFamily: font.display },
-  testLevel: { fontSize: 13, fontFamily: font.body },
-  testDate: { fontSize: 13, fontFamily: font.body },
 });

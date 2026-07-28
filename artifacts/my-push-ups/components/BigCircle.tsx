@@ -5,7 +5,7 @@ import Svg, { Circle } from "react-native-svg";
 import { font } from "@/components/UI";
 import { useColors } from "@/hooks/useColors";
 
-const SIZE = 248;
+const DEFAULT_SIZE = 248;
 // Thin ring: the number is the subject, the ring is the frame around it.
 const STROKE = 6;
 
@@ -17,6 +17,9 @@ export function BigCircle({
   onPress,
   accessibilityLabel,
   color,
+  size = DEFAULT_SIZE,
+  showProgress,
+  valueScale,
 }: {
   mode: "work" | "rest";
   value: string;
@@ -25,6 +28,17 @@ export function BigCircle({
   onPress?: () => void;
   accessibilityLabel?: string;
   color?: string;
+  size?: number;
+  /**
+   * Sweep the ring to show `progress`. Defaults to rest-only, which is what a
+   * self-paced rep round wants — but a timed hold needs the sweep while working.
+   */
+  showProgress?: boolean;
+  /**
+   * Which glyph size to use. A count is one or two big digits; a duration is
+   * four narrower characters that need a stable minimum width.
+   */
+  valueScale?: "count" | "duration";
 }) {
   const colors = useColors();
   const scale = useRef(new Animated.Value(1)).current;
@@ -44,47 +58,57 @@ export function BigCircle({
     }).start();
   };
 
-  const r = (SIZE - STROKE) / 2;
+  const r = (size - STROKE) / 2;
   const c = 2 * Math.PI * r;
   const isRest = mode === "rest";
+  const sweeps = showProgress ?? isRest;
+  const glyphScale = valueScale ?? (isRest ? "duration" : "count");
   const strokeColor = color ?? (isRest ? colors.rest : colors.primary);
   const offset = c * (1 - Math.min(1, Math.max(0, progress)));
 
   const ring = (
-    <Svg width={SIZE} height={SIZE}>
+    <Svg width={size} height={size}>
       <Circle
-        cx={SIZE / 2}
-        cy={SIZE / 2}
+        cx={size / 2}
+        cy={size / 2}
         r={r}
         stroke={colors.border}
         strokeWidth={STROKE}
         fill="none"
       />
       <Circle
-        cx={SIZE / 2}
-        cy={SIZE / 2}
+        cx={size / 2}
+        cy={size / 2}
         r={r}
         stroke={strokeColor}
         strokeWidth={STROKE}
         fill="none"
         strokeDasharray={`${c}`}
-        // Work mode shows a complete ring — the round is the whole of it.
-        strokeDashoffset={isRest ? offset : 0}
+        // A self-paced round shows a complete ring — the round is the whole of
+        // it. Anything with a running clock sweeps instead.
+        strokeDashoffset={sweeps ? offset : 0}
         strokeLinecap="round"
-        transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
       />
     </Svg>
   );
 
+  // Both readouts use Inter tabular figures (equal width, equal height, all on
+  // the baseline) so digits never look bigger or lower than each other as the
+  // value changes — a rep count stepped with +/- jitters just as a countdown does.
+  const isDuration = glyphScale === "duration";
+  const fontSize = Math.round(size * (isDuration ? 0.235 : 0.35));
   const center = (
-    <View style={styles.center}>
-      {/* The countdown uses Inter tabular figures (equal width, equal height,
-          all on the baseline) so digits never look bigger/lower than each other
-          as the value ticks down. The static rep count keeps the serif. */}
+    <View style={styles.center} pointerEvents="none">
       <Text
         style={[
-          isRest ? styles.restValue : styles.workValue,
-          { color: colors.foreground },
+          styles.value,
+          {
+            color: colors.foreground,
+            fontSize,
+            lineHeight: Math.round(fontSize * 1.2),
+            minWidth: isDuration ? size * 0.6 : undefined,
+          },
         ]}
         allowFontScaling={false}
       >
@@ -98,12 +122,12 @@ export function BigCircle({
     </View>
   );
 
-  if (isRest) {
+  if (!onPress) {
     return (
       <View
-        style={styles.wrap}
+        style={[styles.wrap, { width: size, height: size }]}
         accessibilityLabel={accessibilityLabel}
-        testID="rest-ring"
+        testID={isRest ? "rest-ring" : "work-ring"}
       >
         {ring}
         {center}
@@ -116,11 +140,16 @@ export function BigCircle({
       onPress={onPress}
       onPressIn={pressIn}
       onPressOut={pressOut}
-      disabled={!onPress}
       accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
       testID="work-circle"
     >
-      <Animated.View style={[styles.wrap, { transform: [{ scale }] }]}>
+      <Animated.View
+        style={[
+          styles.wrap,
+          { width: size, height: size, transform: [{ scale }] },
+        ]}
+      >
         {ring}
         {center}
       </Animated.View>
@@ -130,8 +159,6 @@ export function BigCircle({
 
 const styles = StyleSheet.create({
   wrap: {
-    width: SIZE,
-    height: SIZE,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -139,21 +166,11 @@ const styles = StyleSheet.create({
     position: "absolute",
     alignItems: "center",
   },
-  workValue: {
-    fontSize: 88,
-    lineHeight: 100,
-    fontFamily: font.display,
-  },
-  restValue: {
-    fontSize: 58,
-    lineHeight: 70,
+  value: {
     fontFamily: font.bodySemi,
     fontVariant: ["tabular-nums"],
     letterSpacing: 1,
     textAlign: "center",
-    // The 4-char "m:ss" string is fixed width with tabular figures; a stable
-    // min width keeps the block centred even at the "0:09" boundary.
-    minWidth: 150,
   },
   sublabel: {
     fontSize: 11,

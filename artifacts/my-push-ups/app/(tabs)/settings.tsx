@@ -1,16 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-  Alert,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,24 +19,23 @@ import {
   SectionTitle,
   font,
 } from "@/components/UI";
+import { ExerciseSettingsCard } from "@/components/exercise/ExerciseSettingsCard";
 import { useApp } from "@/context/AppContext";
+import { useEnabledExercises } from "@/context/useExercise";
 import { useColors } from "@/hooks/useColors";
+import { exportBackupFile, pickBackupFile } from "@/lib/backup";
+import { DAY_LABELS } from "@/lib/core";
+import { confirmAction, notify } from "@/lib/dialogs";
 import { rescheduleReminders } from "@/lib/notifications";
-import { DAY_LABELS, formatSeconds } from "@/lib/training";
 import type { ReminderConfig, Settings } from "@/lib/types";
-
-const GOALS = [20, 30, 50, 100];
-// Strength training favours longer rests to keep set quality (methodology
-// §Core); the engine caps rest at 3 min (MAX_REST_SECONDS).
-const REST_OPTIONS = [45, 60, 90, 120, 180];
 
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { data, updateSettings, resetAll, importData, exportJson } = useApp();
+  const views = useEnabledExercises();
 
-  const [importVisible, setImportVisible] = useState<boolean>(false);
-  const [importText, setImportText] = useState<string>("");
+  const [busy, setBusy] = useState<boolean>(false);
 
   if (!data) return null;
 
@@ -50,38 +45,52 @@ export default function SettingsScreen() {
   const apply = async (patch: Partial<Settings>) => {
     const next = await updateSettings(patch);
     if (next && "habitReminder" in patch) {
-      rescheduleReminders(next);
+      rescheduleReminders(next, views.map((v) => v.def));
     }
   };
 
   const doExport = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
-      await Share.share({ message: exportJson() });
+      await exportBackupFile(exportJson());
     } catch {
-      // Share cancelled
+      notify("Couldn't export", "The backup file could not be created.");
+    } finally {
+      setBusy(false);
     }
   };
 
   const doImport = async () => {
-    const ok = await importData(importText.trim());
-    if (ok) {
-      setImportVisible(false);
-      setImportText("");
-      Alert.alert("Data restored", "Your backup was imported successfully.");
-    } else {
-      Alert.alert("Couldn't import", "That doesn't look like a valid backup.");
+    if (busy) return;
+    setBusy(true);
+    try {
+      const contents = await pickBackupFile();
+      if (contents === null) return; // cancelled
+      const ok = await importData(contents);
+      if (ok) {
+        notify("Data restored", "Your backup was imported successfully.");
+      } else {
+        notify("Couldn't import", "That file doesn't look like a valid backup.");
+      }
+    } catch {
+      notify("Couldn't import", "That file could not be read.");
+    } finally {
+      setBusy(false);
     }
   };
 
   const doReset = () => {
-    Alert.alert(
-      "Reset all data?",
-      "This deletes your plan, history, and settings. This can't be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Reset", style: "destructive", onPress: resetAll },
-      ],
-    );
+    confirmAction({
+      title: "Reset all data?",
+      message:
+        "This deletes your plan, history, and settings. This can't be undone.",
+      confirmLabel: "Reset",
+      destructive: true,
+      onConfirm: () => {
+        void resetAll();
+      },
+    });
   };
 
   return (
@@ -95,40 +104,11 @@ export default function SettingsScreen() {
       <ScreenTitle subtitle="Tune your plan">Settings</ScreenTitle>
 
       <SectionTitle>Training</SectionTitle>
-      <Card>
-        <Text style={[styles.rowLabel, { color: colors.foreground }]}>
-          Rest between rounds
-        </Text>
-        <View style={styles.chipRow}>
-          {REST_OPTIONS.map((sec) => (
-            <Chip
-              key={sec}
-              label={formatSeconds(sec)}
-              active={s.restSeconds === sec}
-              onPress={() => apply({ restSeconds: sec })}
-            />
-          ))}
-        </View>
-        <Text style={[styles.rowHint, { color: colors.mutedForeground }]}>
-          Longer rests keep each set strong. 1:30–2:00 suits strength work.
-        </Text>
-      </Card>
-
-      <Card style={styles.cardGap}>
-        <Text style={[styles.rowLabel, { color: colors.foreground }]}>
-          Goal (continuous reps)
-        </Text>
-        <View style={styles.chipRow}>
-          {GOALS.map((g) => (
-            <Chip
-              key={g}
-              label={`${g}`}
-              active={s.goalReps === g}
-              onPress={() => apply({ goalReps: g })}
-            />
-          ))}
-        </View>
-      </Card>
+      <View style={styles.exerciseStack}>
+        {views.map((v) => (
+          <ExerciseSettingsCard key={v.id} view={v} showsName={views.length > 1} />
+        ))}
+      </View>
 
       <SectionTitle>Reminders</SectionTitle>
       <ReminderCard
@@ -158,12 +138,14 @@ export default function SettingsScreen() {
           label="Export backup"
           variant="secondary"
           onPress={doExport}
+          disabled={busy}
           testID="btn-export"
         />
         <PrimaryButton
           label="Import backup"
           variant="secondary"
-          onPress={() => setImportVisible(true)}
+          onPress={doImport}
+          disabled={busy}
           testID="btn-import"
         />
         <PrimaryButton
@@ -172,67 +154,16 @@ export default function SettingsScreen() {
           onPress={doReset}
           testID="btn-reset"
         />
+        <Text style={[styles.rowHint, { color: colors.mutedForeground }]}>
+          Backups are plain .json files. Export saves one; import replaces
+          everything on this device with the file you pick.
+        </Text>
       </Card>
 
       <Text style={[styles.about, { color: colors.mutedForeground }]}>
         My Trainer · fully offline · your data never leaves this device
       </Text>
 
-      <Modal
-        visible={importVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setImportVisible(false)}
-      >
-        <View style={styles.modalWrap}>
-          <View
-            style={[
-              styles.modalCard,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
-              Import backup
-            </Text>
-            <Text style={[styles.rowHint, { color: colors.mutedForeground }]}>
-              Paste the JSON from a previous export.
-            </Text>
-            <TextInput
-              style={[
-                styles.modalInput,
-                {
-                  borderColor: colors.border,
-                  color: colors.foreground,
-                  backgroundColor: colors.background,
-                },
-              ]}
-              multiline
-              value={importText}
-              onChangeText={setImportText}
-              placeholder='{"level": 1, ...}'
-              placeholderTextColor={colors.mutedForeground}
-              testID="input-import"
-            />
-            <View style={styles.modalBtns}>
-              <View style={styles.modalBtn}>
-                <PrimaryButton
-                  label="Cancel"
-                  variant="ghost"
-                  onPress={() => setImportVisible(false)}
-                />
-              </View>
-              <View style={styles.modalBtn}>
-                <PrimaryButton
-                  label="Import"
-                  onPress={doImport}
-                  disabled={importText.trim().length === 0}
-                  testID="btn-do-import"
-                />
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
   );
 }
@@ -361,6 +292,7 @@ function ReminderCard({
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
+  exerciseStack: { gap: 10 },
   rowLabel: { fontSize: 15, fontFamily: font.bodySemi },
   rowHint: {
     fontSize: 13,

@@ -7,13 +7,13 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -21,33 +21,22 @@ import { BigCircle } from "@/components/BigCircle";
 import {
   Callout,
   Card,
-  Kicker,
-  MaxRepsField,
+  MaxValueField,
   PrimaryButton,
   font,
 } from "@/components/UI";
 import { useApp } from "@/context/AppContext";
+import { useExercise } from "@/context/useExercise";
 import { useColors } from "@/hooks/useColors";
-import {
-  SESSION_ROUNDS,
-  DAY_TYPE_LABEL,
-  dateKey,
-  formatSeconds,
-  planForDate,
-  recentPainFlags,
-} from "@/lib/training";
-import type { PainFlag } from "@/lib/types";
+import { clamp, dateKey, formatSeconds } from "@/lib/core";
+import { confirmAction } from "@/lib/dialogs";
+import { DEFAULT_EXERCISE_ID, getExercise, isExerciseId } from "@/lib/exercises";
+import type { ExerciseDef } from "@/lib/exercises/types";
+import type { ExerciseId, PainFlag } from "@/lib/types";
 
 type Phase = "work" | "rest" | "summary";
 
-const MAX_REPS = 99;
-
-const PAIN_OPTIONS: { key: PainFlag; label: string }[] = [
-  { key: "wrist", label: "Wrist" },
-  { key: "shoulder", label: "Shoulder" },
-  { key: "elbow", label: "Elbow" },
-  { key: "chest", label: "Chest" },
-];
+const STEP_SIZE = 54;
 
 export default function WorkoutScreen() {
   // Keep the screen on during a workout. Native only: the web Wake Lock API
@@ -59,9 +48,19 @@ export default function WorkoutScreen() {
       deactivateKeepAwake().catch(() => undefined);
     };
   }, []);
-  const { track } = useLocalSearchParams<{ track?: string }>();
-  if (track === "maxtest") return <MaxTestFlow />;
-  return <SessionFlow />;
+  const { track, exerciseId } = useLocalSearchParams<{
+    track?: string;
+    exerciseId?: string;
+  }>();
+  // An absent or unrecognised id falls back to the default track, so a stale
+  // deep link can never land the user on a blank screen.
+  const id: ExerciseId = isExerciseId(exerciseId)
+    ? exerciseId
+    : DEFAULT_EXERCISE_ID;
+  const def = getExercise(id);
+
+  if (track === "maxtest") return <MaxTestFlow id={id} def={def} />;
+  return <SessionFlow id={id} def={def} />;
 }
 
 const beepSource = require("@/assets/sounds/beep.wav");
@@ -132,17 +131,102 @@ function WorkoutBar({
   );
 }
 
-function SessionFlow() {
+/**
+ * The rule across the top of both workout screens: one segment per round, so
+ * "how far in am I" is answered before the eye reaches the circle. The current
+ * round reads as a half-lit segment between the done ones and the ones to come.
+ */
+function RoundTrack({
+  completed,
+  total,
+  label,
+  tone,
+}: {
+  completed: number;
+  total: number;
+  label: string;
+  tone: string;
+}) {
+  const colors = useColors();
+  return (
+    <View style={styles.track} testID="round-track">
+      <View style={styles.trackBar}>
+        {Array.from({ length: total }, (_, i) => (
+          <View
+            key={i}
+            style={[
+              styles.trackSeg,
+              {
+                backgroundColor: i <= completed ? tone : colors.border,
+                opacity: i === completed ? 0.4 : 1,
+              },
+            ]}
+          />
+        ))}
+      </View>
+      <Text style={[styles.trackLabel, { color: tone }]} testID="text-round-label">
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+/** Round tap target flanking the circle, for nudging the rep count. */
+function StepButton({
+  icon,
+  onPress,
+  disabled,
+  size,
+  accessibilityLabel,
+  testID,
+}: {
+  icon: "plus" | "minus";
+  onPress: () => void;
+  disabled?: boolean;
+  size: number;
+  accessibilityLabel: string;
+  testID?: string;
+}) {
+  const colors = useColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={10}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      testID={testID}
+      style={({ pressed }) => [
+        styles.stepBtn,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderColor: colors.border,
+          backgroundColor: pressed ? colors.muted : colors.card,
+          opacity: disabled ? 0.35 : 1,
+        },
+      ]}
+    >
+      <Feather name={icon} size={22} color={colors.foreground} />
+    </Pressable>
+  );
+}
+
+function SessionFlow({ id, def }: { id: ExerciseId; def: ExerciseDef }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const router = useRouter();
-  const { data, completeSession } = useApp();
+  const { data } = useApp();
+  const view = useExercise(id);
   const sounds = useRestSounds();
 
-  const plan = data ? planForDate(data) : null;
+  const plan = view?.plan ?? null;
   const rounds = plan?.rounds ?? [];
-  const totalRounds = SESSION_ROUNDS;
-  const restDuration = data?.settings.restSeconds ?? 60;
+  const totalRounds = def.engine.roundsPerSession;
+  const maxValue = def.format.bounds.max;
+  const restDuration = view?.state.settings.restSeconds ?? 60;
 
   const [phase, setPhase] = useState<Phase>("work");
   const [round, setRound] = useState<number>(1);
@@ -152,6 +236,9 @@ function SessionFlow() {
   const [pains, setPains] = useState<PainFlag[]>([]);
   const [saving, setSaving] = useState<boolean>(false);
   const [adjusting, setAdjusting] = useState<boolean>(false);
+  // What the circle currently reads. Seeded from the prescription, but the
+  // user owns it: the +/- steppers let them log what they actually did.
+  const [pendingReps, setPendingReps] = useState<number>(0);
   // Wall-clock deadline for the current rest. JS timers freeze while the app
   // is backgrounded or the screen is locked, so the countdown must be derived
   // from Date.now(), not from accumulated ticks.
@@ -166,24 +253,43 @@ function SessionFlow() {
   const adjustRep = (index: number, delta: number) => {
     setReps((prev) =>
       prev.map((r, i) =>
-        i === index ? Math.max(0, Math.min(MAX_REPS, r + delta)) : r,
+        i === index ? Math.max(0, Math.min(maxValue, r + delta)) : r,
       ),
     );
   };
 
-  const showPainBanner =
-    phase === "work" && round === 1 && data ? recentPainFlags(data) : false;
+  const showPainBanner = phase === "work" && round === 1 && !!view?.recentPain;
 
+  const currentTarget = rounds[reps.length] ?? rounds[rounds.length - 1] ?? 0;
+
+  // Every new round re-seeds the circle with that round's prescription; edits
+  // the user makes with the steppers survive until the round is banked.
+  // `reps.length` has to be a dependency in its own right: consecutive rounds
+  // often share a target, and keying only on the value would carry the previous
+  // round's edit into the next one.
+  useEffect(() => {
+    setPendingReps(currentTarget);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reps.length, currentTarget]);
+
+  // Re-arm the countdown on the deadline's own second boundaries instead of
+  // polling on a fixed cadence. A fixed interval drifts out of phase with the
+  // deadline, so the displayed digit lingers or skips by up to a whole tick;
+  // aiming each timeout at the next boundary keeps every digit on screen for
+  // one real second.
   useEffect(() => {
     if (phase !== "rest") return;
-    const id = setInterval(() => {
-      const remaining = Math.max(
-        0,
-        Math.ceil((restEndsAt.current - Date.now()) / 1000),
-      );
-      setRestLeft(remaining);
-    }, 250);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setTimeout> | undefined;
+    const tick = () => {
+      const msLeft = Math.max(0, restEndsAt.current - Date.now());
+      setRestLeft(Math.ceil(msLeft / 1000));
+      if (msLeft <= 0) return;
+      id = setTimeout(tick, (msLeft % 1000 || 1000) + 20);
+    };
+    tick();
+    return () => {
+      if (id !== undefined) clearTimeout(id);
+    };
   }, [phase]);
 
   useEffect(() => {
@@ -198,14 +304,17 @@ function SessionFlow() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, restLeft]);
 
-  if (!data) return null;
+  if (!data || !view) return null;
 
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
   const bottomPad = Platform.OS === "web" ? 46 : insets.bottom + 16;
-  const currentTarget = rounds[reps.length] ?? rounds[rounds.length - 1] ?? 0;
+
+  // The circle, its two steppers and the screen gutters have to share one row,
+  // so the ring gives way on narrow phones rather than pushing them off-screen.
+  const circleSize = clamp(width - 32 - 2 * (STEP_SIZE + 10), 168, 240);
 
   const completeRound = () => {
-    const nextReps = [...reps, currentTarget];
+    const nextReps = [...reps, pendingReps];
     setReps(nextReps);
     if (nextReps.length < totalRounds) {
       startRest();
@@ -220,10 +329,13 @@ function SessionFlow() {
   };
 
   const finishEarly = () => {
-    Alert.alert("Finish early?", "Your completed rounds will be saved.", [
-      { text: "Keep going", style: "cancel" },
-      { text: "Finish", onPress: () => setPhase("summary") },
-    ]);
+    confirmAction({
+      title: "Finish early?",
+      message: "Your completed rounds will be saved.",
+      cancelLabel: "Keep going",
+      confirmLabel: "Finish",
+      onConfirm: () => setPhase("summary"),
+    });
   };
 
   const exit = () => {
@@ -231,21 +343,25 @@ function SessionFlow() {
       router.back();
       return;
     }
-    Alert.alert("Leave workout?", "This session won't be saved.", [
-      { text: "Stay", style: "cancel" },
-      { text: "Leave", style: "destructive", onPress: () => router.back() },
-    ]);
+    confirmAction({
+      title: "Leave workout?",
+      message: "This session won't be saved.",
+      cancelLabel: "Stay",
+      confirmLabel: "Leave",
+      destructive: true,
+      onConfirm: () => router.back(),
+    });
   };
 
   const save = async () => {
     if (saving) return;
     setSaving(true);
-    await completeSession({
+    await view.completeSession({
       date: dateKey(),
-      targetReps: plan?.rounds[0] ?? reps[0] ?? 0,
+      targetValue: plan?.rounds[0] ?? reps[0] ?? 0,
       roundsPlanned: totalRounds,
       roundsCompleted: reps.length,
-      repsPerRound: reps,
+      valuePerRound: reps,
       rpe,
       painFlags: pains,
     });
@@ -257,7 +373,11 @@ function SessionFlow() {
       {phase !== "summary" ? (
         <WorkoutBar
           title={
-            phase === "rest" ? "Resting" : `Round ${round} of ${totalRounds}`
+            phase === "rest"
+              ? "Resting"
+              : plan
+                ? `${view.dayMeta.label} · Day ${plan.microPos}`
+                : "Workout"
           }
           onClose={exit}
           topPad={topPad}
@@ -267,6 +387,13 @@ function SessionFlow() {
 
       {phase === "work" && (
         <View style={styles.body}>
+          <RoundTrack
+            completed={reps.length}
+            total={totalRounds}
+            label={`Round ${round} of ${totalRounds}`}
+            tone={colors.primary}
+          />
+
           <View style={styles.centerWrap}>
             {showPainBanner ? (
               <Callout
@@ -274,27 +401,51 @@ function SessionFlow() {
                 tone={colors.warning}
                 style={styles.banner}
               >
-                You flagged pain recently. Consider fists, handles, or a higher
-                incline today.
+                {def.copy.painBanner}
               </Callout>
             ) : null}
 
-            <Kicker>
-              {plan ? `${DAY_TYPE_LABEL[plan.type]} · Day ${plan.microPos}` : ""}
-            </Kicker>
-
-            <View style={styles.circleWrap}>
+            <View style={styles.circleRow}>
+              <StepButton
+                icon="minus"
+                size={STEP_SIZE}
+                onPress={() => setPendingReps((n) => Math.max(0, n - 1))}
+                disabled={pendingReps <= 0}
+                accessibilityLabel="One rep fewer this round"
+                testID="btn-reps-minus"
+              />
               <BigCircle
                 mode="work"
-                value={`${currentTarget}`}
-                sublabel="reps"
+                size={circleSize}
+                value={def.format.formatValue(pendingReps)}
+                sublabel={def.format.unitLabel}
                 onPress={completeRound}
-                accessibilityLabel={`Complete round, ${currentTarget} push-ups`}
+                accessibilityLabel={def.copy.circleA11y(round, pendingReps)}
+              />
+              <StepButton
+                icon="plus"
+                size={STEP_SIZE}
+                onPress={() =>
+                  setPendingReps((n) => Math.min(maxValue, n + 1))
+                }
+                disabled={pendingReps >= maxValue}
+                accessibilityLabel="One rep more this round"
+                testID="btn-reps-plus"
               />
             </View>
 
             <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-              Tap the circle when you've completed all reps
+              {def.copy.roundHint}
+            </Text>
+            {/* Only speak up once the count has drifted, so the prescription is
+                recoverable without nagging the user who follows it. */}
+            <Text
+              style={[styles.targetNote, { color: colors.mutedForeground }]}
+              testID="text-target-note"
+            >
+              {pendingReps === currentTarget
+                ? "Use − and + if you managed a different number"
+                : `Prescribed: ${def.format.formatValue(currentTarget)} ${def.format.unitLabel}`}
             </Text>
           </View>
 
@@ -313,12 +464,18 @@ function SessionFlow() {
 
       {phase === "rest" && (
         <View style={styles.body}>
-          <View style={styles.centerWrap}>
-            <Kicker>Round complete</Kicker>
+          <RoundTrack
+            completed={reps.length}
+            total={totalRounds}
+            label={`Round ${round} of ${totalRounds} done`}
+            tone={colors.rest}
+          />
 
-            <View style={styles.circleWrap}>
+          <View style={styles.centerWrap}>
+            <View style={styles.circleRow}>
               <BigCircle
                 mode="rest"
+                size={circleSize}
                 value={formatSeconds(restLeft)}
                 sublabel="rest"
                 progress={restLeft / restDuration}
@@ -327,53 +484,9 @@ function SessionFlow() {
             </View>
 
             <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-              Next: round {round + 1} of {totalRounds} · {rounds[round] ?? 0}{" "}
-              reps
+              Next: round {round + 1} of {totalRounds} ·{" "}
+              {def.format.formatValue(rounds[round] ?? 0)} {def.format.unitLabel}
             </Text>
-
-            {reps.length > 0 ? (
-              <View style={styles.restAdjustRow}>
-                <Pressable
-                  onPress={() => adjustRep(reps.length - 1, -1)}
-                  disabled={(reps[reps.length - 1] ?? 0) <= 0}
-                  style={[
-                    styles.roundBtn,
-                    {
-                      borderColor: colors.border,
-                      backgroundColor: colors.card,
-                      opacity: (reps[reps.length - 1] ?? 0) <= 0 ? 0.4 : 1,
-                    },
-                  ]}
-                  accessibilityLabel="Decrease reps for last round"
-                  testID="btn-adjust-minus"
-                >
-                  <Feather name="minus" size={18} color={colors.foreground} />
-                </Pressable>
-                <Text
-                  style={[styles.restAdjustText, { color: colors.mutedForeground }]}
-                  testID="text-adjust-reps"
-                >
-                  {reps[reps.length - 1]} reps recorded
-                </Text>
-                <Pressable
-                  onPress={() => adjustRep(reps.length - 1, 1)}
-                  disabled={(reps[reps.length - 1] ?? 0) >= MAX_REPS}
-                  style={[
-                    styles.roundBtn,
-                    {
-                      borderColor: colors.border,
-                      backgroundColor: colors.card,
-                      opacity:
-                        (reps[reps.length - 1] ?? 0) >= MAX_REPS ? 0.4 : 1,
-                    },
-                  ]}
-                  accessibilityLabel="Increase reps for last round"
-                  testID="btn-adjust-plus"
-                >
-                  <Feather name="plus" size={18} color={colors.foreground} />
-                </Pressable>
-              </View>
-            ) : null}
           </View>
 
           <View style={[styles.footer, { paddingBottom: bottomPad }]}>
@@ -417,7 +530,7 @@ function SessionFlow() {
               </Text>
               <Text style={[styles.doneSub, { color: colors.mutedForeground }]}>
                 {reps.length} {reps.length === 1 ? "round" : "rounds"} ·{" "}
-                {reps.reduce((a, b) => a + b, 0)} reps total
+                {reps.reduce((a, b) => a + b, 0)} {def.format.unitLabel} total
               </Text>
             </View>
 
@@ -470,12 +583,12 @@ function SessionFlow() {
                       </Text>
                       <Pressable
                         onPress={() => adjustRep(i, 1)}
-                        disabled={r >= MAX_REPS}
+                        disabled={r >= maxValue}
                         style={[
                           styles.smallRoundBtn,
                           {
                             borderColor: colors.border,
-                            opacity: r >= MAX_REPS ? 0.4 : 1,
+                            opacity: r >= maxValue ? 0.4 : 1,
                           },
                         ]}
                         accessibilityLabel={`Increase reps for round ${i + 1}`}
@@ -543,7 +656,7 @@ function SessionFlow() {
                 Any pain? (optional)
               </Text>
               <View style={styles.painRow}>
-                {PAIN_OPTIONS.map((p) => {
+                {def.painOptions.map((p) => {
                   const active = pains.includes(p.key);
                   return (
                     <Pressable
@@ -587,8 +700,7 @@ function SessionFlow() {
               </View>
               {pains.length > 0 ? (
                 <Text style={[styles.painNote, { color: colors.mutedForeground }]}>
-                  Try fists or push-up handles for wrists, or a higher incline.
-                  We'll go easier if this continues.
+                  {def.copy.painNote}
                 </Text>
               ) : null}
             </Card>
@@ -608,26 +720,27 @@ function SessionFlow() {
   );
 }
 
-function MaxTestFlow() {
+function MaxTestFlow({ id, def }: { id: ExerciseId; def: ExerciseDef }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { data, recordMaxTest } = useApp();
+  const { data } = useApp();
+  const view = useExercise(id);
   const [text, setText] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
 
-  if (!data) return null;
+  if (!data || !view) return null;
 
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
   const bottomPad = Platform.OS === "web" ? 46 : insets.bottom + 16;
 
-  const reps = parseInt(text, 10);
-  const valid = Number.isFinite(reps) && reps >= 1 && reps <= 999;
+  const parsed = def.format.parseValue(text);
+  const valid = parsed !== null;
 
   const save = async () => {
-    if (saving || !valid) return;
+    if (saving || parsed === null) return;
     setSaving(true);
-    await recordMaxTest(reps);
+    await view.recordMaxTest(parsed);
     router.back();
   };
 
@@ -651,13 +764,18 @@ function MaxTestFlow() {
       >
         <View style={styles.maxTestBlock}>
           <Text style={[styles.introBody, { color: colors.mutedForeground }]}>
-            One set of push-ups to your technical limit. Stop the moment your
-            form breaks — never push to absolute failure. Type the number of
-            clean reps you managed.
+            {def.copy.maxTestRetestIntro}
           </Text>
 
           <View style={styles.maxFieldWrap}>
-            <MaxRepsField value={text} onChangeText={setText} testID="input-maxtest" />
+            <MaxValueField
+              value={text}
+              onChangeText={setText}
+              unitLabel={def.format.unitLabel}
+              mask={def.format.maskInput}
+              maxLength={def.format.inputMaxLength}
+              testID="input-maxtest"
+            />
           </View>
 
           <View style={styles.maxTestActions}>
@@ -705,39 +823,62 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
   },
-  circleWrap: { marginVertical: 36 },
+  circleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 36,
+  },
   hint: {
     fontSize: 14,
     lineHeight: 20,
     fontFamily: font.body,
     textAlign: "center",
   },
+  targetNote: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: font.bodyMedium,
+    textAlign: "center",
+    marginTop: 8,
+  },
   banner: { marginBottom: 28 },
+
+  track: {
+    paddingHorizontal: 24,
+    paddingTop: 22,
+    alignItems: "center",
+    gap: 10,
+  },
+  trackBar: {
+    flexDirection: "row",
+    alignSelf: "stretch",
+    gap: 6,
+  },
+  trackSeg: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  trackLabel: {
+    fontSize: 11,
+    fontFamily: font.bodySemi,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+
+  stepBtn: {
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   footer: {
     paddingHorizontal: 24,
     width: "100%",
     maxWidth: 400,
     alignSelf: "center",
-  },
-
-  restAdjustRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 36,
-    gap: 16,
-  },
-  roundBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  restAdjustText: {
-    fontSize: 13,
-    fontFamily: font.bodyMedium,
   },
 
   summaryHeader: {

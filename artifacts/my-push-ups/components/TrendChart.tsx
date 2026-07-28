@@ -11,9 +11,9 @@ import Svg, {
 } from "react-native-svg";
 
 import { useColors } from "@/hooks/useColors";
-import { keyToDate } from "@/lib/training";
+import { keyToDate } from "@/lib/core";
 
-export interface RepsPoint {
+export interface TrendPoint {
   date: string;
   total: number;
 }
@@ -24,15 +24,6 @@ const PAD_B = 30;
 const PAD_L = 36;
 const PAD_R = 14;
 
-// Round a value up to a "nice" axis maximum (5, 10, 20, 50, 100, …).
-function niceCeil(v: number): number {
-  if (v <= 5) return 5;
-  const pow = Math.pow(10, Math.floor(Math.log10(v)));
-  const n = v / pow;
-  const nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
-  return nice * pow;
-}
-
 function fmtDate(d: string): string {
   return keyToDate(d).toLocaleDateString(undefined, {
     month: "short",
@@ -40,8 +31,25 @@ function fmtDate(d: string): string {
   });
 }
 
-// Line/area chart of total push-ups per day against the calendar date.
-export function RepsChart({ points }: { points: RepsPoint[] }) {
+/**
+ * Line/area chart of a daily total against the calendar date.
+ *
+ * Unit-agnostic: the caller supplies the axis rounding and the value formatter,
+ * so reps and hold-times both read sensibly. `gradientId` must be unique per
+ * instance — SVG defs share one document namespace, so two charts on the same
+ * screen with the same id would both paint the first one's fill.
+ */
+export function TrendChart({
+  points,
+  gradientId,
+  axisCeil,
+  formatValue = (v) => `${v}`,
+}: {
+  points: TrendPoint[];
+  gradientId: string;
+  axisCeil: (v: number) => number;
+  formatValue?: (v: number) => string;
+}) {
   const colors = useColors();
   const [width, setWidth] = useState(0);
 
@@ -50,7 +58,7 @@ export function RepsChart({ points }: { points: RepsPoint[] }) {
   const plotH = HEIGHT - PAD_T - PAD_B;
   const baseY = PAD_T + plotH;
 
-  const maxY = niceCeil(Math.max(...series.map((p) => p.total), 1));
+  const maxY = axisCeil(Math.max(...series.map((p) => p.total), 1));
 
   const t0 = keyToDate(series[0]?.date ?? "2026-01-01").getTime();
   const tN = keyToDate(series[series.length - 1]?.date ?? "2026-01-01").getTime();
@@ -77,7 +85,7 @@ export function RepsChart({ points }: { points: RepsPoint[] }) {
       {width > 0 ? (
         <Svg width={width} height={HEIGHT}>
           <Defs>
-            <LinearGradient id="repsFill" x1="0" y1="0" x2="0" y2="1">
+            <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor={colors.primary} stopOpacity={0.16} />
               <Stop offset="1" stopColor={colors.primary} stopOpacity={0.02} />
             </LinearGradient>
@@ -102,7 +110,7 @@ export function RepsChart({ points }: { points: RepsPoint[] }) {
             strokeWidth={1}
           />
 
-          {areaPath ? <Path d={areaPath} fill="url(#repsFill)" /> : null}
+          {areaPath ? <Path d={areaPath} fill={`url(#${gradientId})`} /> : null}
           {pts.length > 1 ? (
             <Path
               d={linePath}
@@ -135,7 +143,7 @@ export function RepsChart({ points }: { points: RepsPoint[] }) {
             fill={colors.mutedForeground}
             textAnchor="end"
           >
-            {maxY}
+            {formatValue(maxY)}
           </SvgText>
           <SvgText
             x={PAD_L - 8}
