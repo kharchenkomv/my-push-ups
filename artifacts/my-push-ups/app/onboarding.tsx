@@ -70,7 +70,7 @@ export default function OnboardingScreen() {
           </View>
 
           <Text style={[styles.heroTitle, { color: colors.foreground }]}>
-            {"My Trainer:\npush-ups"}
+            My Trainer
           </Text>
 
           <View style={styles.welcomeAction}>
