@@ -10,33 +10,43 @@ import React, {
 } from "react";
 import { AppState } from "react-native";
 
-import {
-  advanceDayNumber,
-  createInitialData,
-  dateKey,
-  newId,
-  sanitizeImport,
-} from "@/lib/training";
+import { dateKey, newId } from "@/lib/core";
+import { EXERCISES } from "@/lib/exercises";
+import { createInitialData, sanitizeImport } from "@/lib/state";
 import type {
   AppData,
+  ExerciseId,
+  ExerciseSettings,
+  ExerciseState,
   HealthAnswers,
   SessionEntry,
   Settings,
 } from "@/lib/types";
 
-const STORAGE_KEY = "mpu:data:v1";
+const STORAGE_KEY = "mpu:data:v2";
+// Older keys, newest first. Read-only: a legacy blob is migrated forward and
+// then left in place, so reinstalling an older build still finds its own data
+// instead of landing in onboarding and overwriting everything.
+const LEGACY_KEYS = ["mpu:data:v1"];
 
 interface AppContextValue {
   data: AppData | null;
   loading: boolean;
   completeOnboarding: (params: {
-    maxReps: number;
+    maxValue: number;
     health: HealthAnswers;
-    goalReps: number;
   }) => Promise<void>;
-  recordMaxTest: (reps: number) => Promise<void>;
-  completeSession: (entry: Omit<SessionEntry, "id">) => Promise<void>;
+  recordMaxTest: (id: ExerciseId, value: number) => Promise<void>;
+  completeSession: (
+    id: ExerciseId,
+    entry: Omit<SessionEntry, "id">,
+  ) => Promise<void>;
   updateSettings: (patch: Partial<Settings>) => Promise<Settings | null>;
+  updateExerciseSettings: (
+    id: ExerciseId,
+    patch: Partial<ExerciseSettings>,
+  ) => Promise<ExerciseSettings | null>;
+  setExerciseEnabled: (id: ExerciseId, enabled: boolean) => Promise<void>;
   resetAll: () => Promise<void>;
   importData: (json: string) => Promise<boolean>;
   exportJson: () => string;
@@ -67,15 +77,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (cancelled) return;
         if (raw) {
-          // Sanitize on load: migrates data written by older app versions
-          // (habit-era level / dailyTarget / weekly-eval fields, pre-`days`
-          // reminder configs) to the current microcycle shape.
+          // Sanitize on load: seeds newly-registered exercises and migrates any
+          // shape written by an older app version.
           const parsed = sanitizeImport(JSON.parse(raw));
           if (parsed) {
             setData(parsed);
-            // Persist if migration changed the on-disk shape.
+            // Persist only if migration actually changed the on-disk shape.
             if (JSON.stringify(parsed) !== raw) enqueueWrite(parsed);
+            return;
           }
+        }
+
+        // No usable v2 blob — look for data written by an earlier schema.
+        for (const key of LEGACY_KEYS) {
+          const legacy = await AsyncStorage.getItem(key);
+          if (cancelled) return;
+          if (!legacy) continue;
+          const parsed = sanitizeImport(JSON.parse(legacy));
+          if (!parsed) continue;
+          setData(parsed);
+          // Write forward, but deliberately leave the legacy key intact.
+          await enqueueWrite(parsed);
+          return;
         }
       } catch {
         // Corrupt data — start fresh rather than crash.
@@ -116,12 +139,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [enqueueWrite],
   );
 
+  /** Scoped mutation of one track, reusing the atomic write path. */
+  const mutateExercise = useCallback(
+    (id: ExerciseId, updater: (prev: ExerciseState) => ExerciseState) =>
+      mutate((prev) => ({
+        ...prev,
+        exercises: { ...prev.exercises, [id]: updater(prev.exercises[id]) },
+      })),
+    [mutate],
+  );
+
   const completeOnboarding = useCallback(
-    async (params: {
-      maxReps: number;
-      health: HealthAnswers;
-      goalReps: number;
-    }) => {
+    async (params: { maxValue: number; health: HealthAnswers }) => {
       const next = createInitialData(params);
       setData(next);
       await enqueueWrite(next);
@@ -130,32 +159,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const recordMaxTest = useCallback(
-    async (reps: number) => {
-      await mutate((prev) => ({
+    async (id: ExerciseId, value: number) => {
+      await mutateExercise(id, (prev) => ({
         ...prev,
-        maxTests: [...prev.maxTests, { date: dateKey(), reps }],
+        maxTests: [...prev.maxTests, { date: dateKey(), value }],
         // Round targets read the latest max directly, so nothing else to
         // recompute here (methodology §Step 6).
         needsMaxTest: false,
       }));
     },
-    [mutate],
+    [mutateExercise],
   );
 
   const completeSession = useCallback(
-    async (entry: Omit<SessionEntry, "id">) => {
-      await mutate((prev) => {
-        const session: SessionEntry = { ...entry, id: newId() };
-        return {
-          ...prev,
-          sessions: [...prev.sessions, session],
-          // Advance the microcycle only on completion; a skipped day leaves
-          // dayNumber untouched so the same prescription repeats (§Step 5).
-          dayNumber: advanceDayNumber(prev.dayNumber),
-        };
-      });
+    async (id: ExerciseId, entry: Omit<SessionEntry, "id">) => {
+      await mutateExercise(id, (prev) => ({
+        ...prev,
+        sessions: [...prev.sessions, { ...entry, id: newId() }],
+        // Advance the cycle only on completion; a skipped day leaves dayNumber
+        // untouched so the same prescription repeats (§Step 5).
+        dayNumber: EXERCISES[id].engine.advanceDayNumber(prev.dayNumber),
+      }));
     },
-    [mutate],
+    [mutateExercise],
   );
 
   const updateSettings = useCallback(
@@ -169,14 +195,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [mutate],
   );
 
+  const updateExerciseSettings = useCallback(
+    async (id: ExerciseId, patch: Partial<ExerciseSettings>) => {
+      await mutateExercise(id, (prev) => ({
+        ...prev,
+        settings: { ...prev.settings, ...patch },
+      }));
+      return dataRef.current?.exercises[id].settings ?? null;
+    },
+    [mutateExercise],
+  );
+
+  const setExerciseEnabled = useCallback(
+    async (id: ExerciseId, enabled: boolean) => {
+      await mutateExercise(id, (prev) => ({ ...prev, enabled }));
+    },
+    [mutateExercise],
+  );
+
   const resetAll = useCallback(async () => {
     setData(null);
     dataRef.current = null;
-    try {
-      await AsyncStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
+    // Delete *through the write queue*, not alongside it: a save still in
+    // flight would otherwise land after the removal and resurrect the data.
+    // Clearing the legacy keys matters too — a reset the user asked for must
+    // not be undone by an old blob resurfacing on the next launch.
+    writeQueue.current = writeQueue.current
+      .then(() =>
+        Promise.all(
+          [STORAGE_KEY, ...LEGACY_KEYS].map((k) => AsyncStorage.removeItem(k)),
+        ).then(() => undefined),
+      )
+      .catch(() => undefined);
+    await writeQueue.current;
   }, []);
 
   const importData = useCallback(
@@ -206,6 +257,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       recordMaxTest,
       completeSession,
       updateSettings,
+      updateExerciseSettings,
+      setExerciseEnabled,
       resetAll,
       importData,
       exportJson,
@@ -220,6 +273,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       recordMaxTest,
       completeSession,
       updateSettings,
+      updateExerciseSettings,
+      setExerciseEnabled,
       resetAll,
       importData,
       exportJson,

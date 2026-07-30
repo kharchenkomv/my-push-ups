@@ -2,47 +2,62 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   addDays,
-  advanceDayNumber,
-  bestMax,
   clamp,
-  createInitialData,
-  currentMaxReps,
   currentStreak,
   dateKey,
-  dayTypeFor,
   daysBetween,
   formatSeconds,
-  isHabitDay,
   keyToDate,
-  maxTestDue,
+  weekdayOf,
+} from "../lib/core";
+import {
+  advanceDayNumber,
+  dayTypeFor,
   microPosOf,
   planForDay,
   roundRepFromPct,
-  weekdayOf,
   MICROCYCLE_DAYS,
   MIN_ROUND_REPS,
   RETEST_DAYS,
   SESSION_ROUNDS,
-} from "../lib/training";
-import type { AppData, SessionEntry, Settings } from "../lib/types";
+} from "../lib/exercises/pushups/engine";
+import { getExercise } from "../lib/exercises";
+import {
+  bestMax,
+  createInitialData,
+  currentMax,
+  isHabitDay,
+  maxTestDue,
+} from "../lib/state";
+import type { AppData, ExerciseState, SessionEntry, Settings } from "../lib/types";
 
-function makeData(overrides: Partial<AppData> = {}): AppData {
+const pushups = getExercise("pushups");
+
+function makeData(overrides: Partial<ExerciseState> = {}): AppData {
   const base = createInitialData({
-    maxReps: 20,
+    maxValue: 20,
     health: { cardio: false, joints: false, pain: false, acknowledged: true },
-    goalReps: 50,
   });
-  return { ...base, ...overrides };
+  return {
+    ...base,
+    exercises: {
+      ...base.exercises,
+      pushups: { ...base.exercises.pushups, ...overrides },
+    },
+  };
 }
+
+/** The push-up track inside a test fixture. */
+const px = (d: AppData): ExerciseState => d.exercises.pushups;
 
 function session(overrides: Partial<SessionEntry> = {}): SessionEntry {
   return {
     id: `s-${Math.random()}`,
     date: "2026-07-06",
-    targetReps: 12,
+    targetValue: 12,
     roundsPlanned: SESSION_ROUNDS,
     roundsCompleted: SESSION_ROUNDS,
-    repsPerRound: [12, 12, 11, 11, 10],
+    valuePerRound: [12, 12, 11, 11, 10],
     rpe: 6,
     painFlags: [],
     ...overrides,
@@ -188,13 +203,13 @@ describe("max, streak & re-test scheduling", () => {
   it("currentMaxReps / bestMax read the max tests", () => {
     const data = makeData({
       maxTests: [
-        { date: "2026-06-01", reps: 18 },
-        { date: "2026-06-15", reps: 22 },
-        { date: "2026-06-29", reps: 20 },
+        { date: "2026-06-01", value: 18 },
+        { date: "2026-06-15", value: 22 },
+        { date: "2026-06-29", value: 20 },
       ],
     });
-    assert.equal(currentMaxReps(data), 20); // latest
-    assert.equal(bestMax(data), 22); // best ever
+    assert.equal(currentMax(pushups, px(data)), 20); // latest
+    assert.equal(bestMax(px(data)), 22); // best ever
   });
 
   it("currentStreak counts consecutive days ending today", () => {
@@ -216,15 +231,16 @@ describe("max, streak & re-test scheduling", () => {
 
   it("maxTestDue after RETEST_DAYS, not before", () => {
     const today = dateKey();
+    const due = (d: AppData) => maxTestDue(pushups, px(d), today);
     assert.equal(
-      maxTestDue(makeData({ maxTests: [{ date: addDays(today, -(RETEST_DAYS - 1)), reps: 12 }] })),
+      due(makeData({ maxTests: [{ date: addDays(today, -(RETEST_DAYS - 1)), value: 12 }] })),
       false,
     );
     assert.equal(
-      maxTestDue(makeData({ maxTests: [{ date: addDays(today, -RETEST_DAYS), reps: 12 }] })),
+      due(makeData({ maxTests: [{ date: addDays(today, -RETEST_DAYS), value: 12 }] })),
       true,
     );
-    assert.equal(maxTestDue(makeData({ maxTests: [] })), true);
+    assert.equal(due(makeData({ maxTests: [] })), true);
   });
 });
 
@@ -244,10 +260,11 @@ describe("isHabitDay", () => {
 describe("createInitialData", () => {
   it("starts at microcycle day 1 with one max test", () => {
     const d = makeData();
-    assert.equal(d.dayNumber, 1);
-    assert.equal(d.maxTests.length, 1);
-    assert.equal(d.maxTests[0]?.reps, 20);
-    assert.equal(d.sessions.length, 0);
+    assert.equal(px(d).dayNumber, 1);
+    assert.equal(px(d).maxTests.length, 1);
+    assert.equal(px(d).maxTests[0]?.value, 20);
+    assert.equal(px(d).sessions.length, 0);
+    assert.equal(px(d).enabled, true);
     assert.equal(MICROCYCLE_DAYS, 7);
   });
 });

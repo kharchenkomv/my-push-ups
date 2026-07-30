@@ -8,39 +8,19 @@ import {
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PlankMark } from "@/components/PlankMark";
-import { Callout, Chip, MaxRepsField, PrimaryButton, font } from "@/components/UI";
+import { Callout, MaxValueField, PrimaryButton, font } from "@/components/UI";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { DEFAULT_EXERCISE_ID, getExercise } from "@/lib/exercises";
 
 type Step = "welcome" | "setup" | "maxtest";
 
-const GOALS = [20, 30, 50, 100];
-
-/** The movement's atomic unit — a quiet row of days marked and days missed. */
-function DotRow({ count = 12, filled = 4 }: { count?: number; filled?: number }) {
-  const colors = useColors();
-  return (
-    <View style={styles.dotRow}>
-      {Array.from({ length: count }, (_, i) => (
-        <View
-          key={i}
-          style={[
-            styles.markDot,
-            {
-              backgroundColor: i < filled ? colors.primary : "transparent",
-              borderColor: i < filled ? colors.primary : colors.border,
-            },
-          ]}
-        />
-      ))}
-    </View>
-  );
-}
+// Onboarding calibrates the track a fresh install starts with.
+const def = getExercise(DEFAULT_EXERCISE_ID);
 
 export default function OnboardingScreen() {
   const colors = useColors();
@@ -49,8 +29,6 @@ export default function OnboardingScreen() {
   const { completeOnboarding } = useApp();
 
   const [step, setStep] = useState<Step>("welcome");
-  const [goal, setGoal] = useState<number>(50);
-  const [customGoal, setCustomGoal] = useState<string>("");
   const [cardio, setCardio] = useState<boolean>(false);
   const [joints, setJoints] = useState<boolean>(false);
   const [pain, setPain] = useState<boolean>(false);
@@ -59,15 +37,14 @@ export default function OnboardingScreen() {
   const topPad = Platform.OS === "web" ? 79 : insets.top + 12;
   const bottomPad = Platform.OS === "web" ? 46 : insets.bottom + 12;
 
-  const maxReps = parseInt(maxRepsText, 10);
-  const maxValid = Number.isFinite(maxReps) && maxReps >= 1 && maxReps <= 999;
+  const maxValue = def.format.parseValue(maxRepsText);
+  const maxValid = maxValue !== null;
 
   const finish = async () => {
-    if (!maxValid) return;
+    if (maxValue === null) return;
     await completeOnboarding({
-      maxReps,
+      maxValue,
       health: { cardio, joints, pain, acknowledged: true },
-      goalReps: goal,
     });
     router.replace("/(tabs)");
   };
@@ -95,12 +72,6 @@ export default function OnboardingScreen() {
           <Text style={[styles.heroTitle, { color: colors.foreground }]}>
             My Trainer
           </Text>
-          <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>
-            A safe, science-based path from your first wall push-up to 100 reps
-            unbroken.
-          </Text>
-
-          <DotRow />
 
           <View style={styles.welcomeAction}>
             <PrimaryButton
@@ -130,7 +101,7 @@ export default function OnboardingScreen() {
           <Feather name="chevron-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.navTitle, { color: colors.foreground }]}>
-          {step === "maxtest" ? "Max-rep test" : "Set up your plan"}
+          {step === "maxtest" ? def.copy.maxTestNavTitle : "Before you start"}
         </Text>
         <View style={{ width: 28 }} />
       </View>
@@ -145,46 +116,7 @@ export default function OnboardingScreen() {
       >
         {step === "setup" && (
           <View>
-            <Text style={[styles.sectionLabel, { color: colors.foreground }]}>
-              What's your goal?
-            </Text>
-            <Text style={[styles.body, { color: colors.mutedForeground }]}>
-              Continuous push-ups you want to reach. You can change this later.
-            </Text>
-            <View style={styles.chipRow}>
-              {GOALS.map((g) => (
-                <Chip
-                  key={g}
-                  label={`${g}`}
-                  active={goal === g && customGoal === ""}
-                  onPress={() => {
-                    setGoal(g);
-                    setCustomGoal("");
-                  }}
-                />
-              ))}
-            </View>
-            <TextInput
-              style={[
-                styles.goalInput,
-                {
-                  borderColor: colors.border,
-                  color: colors.foreground,
-                  backgroundColor: colors.card,
-                },
-              ]}
-              placeholder="Custom goal"
-              placeholderTextColor={colors.mutedForeground}
-              keyboardType="number-pad"
-              value={customGoal}
-              onChangeText={(t) => {
-                setCustomGoal(t);
-                const n = parseInt(t, 10);
-                if (!Number.isNaN(n) && n > 0) setGoal(n);
-              }}
-            />
-
-            <View style={styles.sectionGap}>
+            <View>
               <Text style={[styles.sectionLabel, { color: colors.foreground }]}>
                 Quick health check
               </Text>
@@ -240,15 +172,16 @@ export default function OnboardingScreen() {
                 { color: colors.mutedForeground },
               ]}
             >
-              One set of push-ups to your technical limit. Stop the moment your
-              form breaks — never push to absolute failure. This sizes your whole
-              plan, so type only the clean reps.
+              {def.copy.maxTestIntro}
             </Text>
 
             <View style={styles.maxFieldWrap}>
-              <MaxRepsField
+              <MaxValueField
                 value={maxRepsText}
                 onChangeText={setMaxRepsText}
+                unitLabel={def.format.unitLabel}
+                mask={def.format.maskInput}
+                maxLength={def.format.inputMaxLength}
                 testID="input-onboarding-max"
               />
             </View>
@@ -346,29 +279,10 @@ const styles = StyleSheet.create({
     fontFamily: font.display,
     textAlign: "center",
   },
-  heroSub: {
-    fontSize: 15,
-    lineHeight: 23,
-    fontFamily: font.body,
-    textAlign: "center",
-    marginTop: 14,
-    maxWidth: 280,
-  },
-  dotRow: {
-    flexDirection: "row",
-    gap: 7,
-    marginTop: 40,
-  },
-  markDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    borderWidth: 1,
-  },
   welcomeAction: {
     width: "100%",
     maxWidth: 300,
-    marginTop: 48,
+    marginTop: 56,
   },
 
   sectionLabel: {
@@ -378,28 +292,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 6,
   },
-  sectionGap: { marginTop: 40 },
   body: {
     fontSize: 15,
     lineHeight: 22,
     fontFamily: font.body,
   },
 
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 16,
-  },
-  goalInput: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    fontSize: 16,
-    fontFamily: font.body,
-    marginTop: 12,
-  },
 
   toggleStack: { gap: 10, marginTop: 16 },
   healthRow: {

@@ -2,22 +2,15 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   advanceDayNumber,
-  createInitialData,
   microPosOf,
   planForDay,
-  sanitizeImport,
   MICROCYCLE_DAYS,
-} from "../lib/training";
-import type { AppData } from "../lib/types";
+} from "../lib/exercises/pushups/engine";
+import { sanitizeImport } from "../lib/state";
+import type { AppData, ExerciseState } from "../lib/types";
 
-function freshData(overrides: Partial<AppData> = {}): AppData {
-  const base = createInitialData({
-    maxReps: 20,
-    health: { cardio: false, joints: false, pain: false, acknowledged: true },
-    goalReps: 50,
-  });
-  return { ...base, ...overrides };
-}
+/** The push-up track inside a migrated blob. */
+const px = (d: AppData): ExerciseState => d.exercises.pushups;
 
 describe("microcycle simulation", () => {
   it("completing sessions walks the 7-day cycle and repeats it", () => {
@@ -93,13 +86,13 @@ describe("import of malformed backups", () => {
   it("accepts a valid backup and preserves state", () => {
     const out = sanitizeImport(validBackup());
     assert.ok(out);
-    assert.equal(out.dayNumber, 3);
-    assert.equal(out.sessions.length, 1);
-    assert.equal(out.settings.restSeconds, 90);
+    assert.equal(px(out).dayNumber, 3);
+    assert.equal(px(out).sessions.length, 1);
+    assert.equal(px(out).settings.restSeconds, 90);
     // Levels are gone from the shape entirely.
     assert.equal("level" in out, false);
-    assert.equal("level" in out.maxTests[0]!, false);
-    assert.equal("level" in out.sessions[0]!, false);
+    assert.equal("level" in px(out).maxTests[0]!, false);
+    assert.equal("level" in px(out).sessions[0]!, false);
   });
 
   it("keeps a valid elbow pain flag and drops unknown ones", () => {
@@ -109,7 +102,7 @@ describe("import of malformed backups", () => {
       sessions: [{ ...backup.sessions[0], painFlags: ["elbow", "made-up"] }],
     });
     assert.ok(out);
-    assert.deepEqual(out.sessions[0]?.painFlags, ["elbow"]);
+    assert.deepEqual(px(out).sessions[0]?.painFlags, ["elbow"]);
   });
 
   it("migrates a habit-era backup, dropping level / dailyTarget / weekly fields", () => {
@@ -140,16 +133,16 @@ describe("import of malformed backups", () => {
     };
     const out = sanitizeImport(legacy);
     assert.ok(out);
-    assert.equal(out.sessions.length, 1);
+    assert.equal(px(out).sessions.length, 1);
     assert.equal("level" in out, false);
     assert.equal("dailyTarget" in out, false);
     assert.equal("lastWeekEvaluated" in out, false);
-    assert.equal("level" in out.sessions[0]!, false);
-    assert.equal("level" in out.maxTests[0]!, false);
+    assert.equal("level" in px(out).sessions[0]!, false);
+    assert.equal("level" in px(out).maxTests[0]!, false);
     // No stored dayNumber: synthesize from completed-session count (1 + 1).
-    assert.equal(out.dayNumber, 2);
+    assert.equal(px(out).dayNumber, 2);
     // rest gets the default when absent
-    assert.equal(out.settings.restSeconds, 90);
+    assert.equal(px(out).settings.restSeconds, 90);
   });
 
   it("rejects non-objects, empty payloads, and missing arrays", () => {
@@ -168,7 +161,7 @@ describe("import of malformed backups", () => {
       settings: { ...validBackup().settings, restSeconds: 9999 },
     });
     assert.ok(over);
-    assert.equal(over.settings.restSeconds, 180); // capped at 3 min
+    assert.equal(px(over).settings.restSeconds, 180); // capped at 3 min
   });
 
   it("filters malformed sessions but keeps valid ones", () => {
@@ -176,8 +169,8 @@ describe("import of malformed backups", () => {
     (backup.sessions as unknown[]).push({ date: "2026-06-03" }, null, "garbage");
     const out = sanitizeImport(backup);
     assert.ok(out);
-    assert.equal(out.sessions.length, 1);
-    assert.equal(out.sessions[0]?.id, "x1");
+    assert.equal(px(out).sessions.length, 1);
+    assert.equal(px(out).sessions[0]?.id, "x1");
   });
 
   it("defaults dayNumber to 1 for a backup with no sessions", () => {
@@ -186,6 +179,6 @@ describe("import of malformed backups", () => {
     backup.sessions = [];
     const out = sanitizeImport(backup);
     assert.ok(out);
-    assert.equal(out.dayNumber, 1);
+    assert.equal(px(out).dayNumber, 1);
   });
 });
